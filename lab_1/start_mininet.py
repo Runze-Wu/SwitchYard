@@ -26,26 +26,7 @@ class PySwitchTopo(Topo):
     def __init__(self, args):
         # Add default members to class.
         super(PySwitchTopo, self).__init__()
-
-        # Host and link configuration
-        #
-        #
-        #   server1
-        #          \
-        #           hub----client
-        #          /
-        #   server2
-        #
-
         nodeconfig = {'cpu': -1}
-        # self.addHost('server1', **nodeconfig)
-        # self.addHost('server2', **nodeconfig)
-        # self.addHost('hub', **nodeconfig)
-        # self.addHost('client', **nodeconfig)
-
-        # for node in ['server1', 'server2', 'client']:
-        #     # all links are 10Mb/s, 100 millisecond prop delay
-        #     self.addLink(node, 'hub', bw=10, delay='100ms')
         # Host and link configuration
         #
         #
@@ -94,14 +75,6 @@ def set_route(net, fromnode, prefix, nextnode):
 
 
 def setup_addressing(net):
-    #    reset_macs(net, 'server1', '10:00:00:00:00:{:02x}')
-    #    reset_macs(net, 'server2', '20:00:00:00:00:{:02x}')
-    #    reset_macs(net, 'client', '30:00:00:00:00:{:02x}')
-    #    reset_macs(net, 'hub', '40:00:00:00:00:{:02x}')
-    #    set_ip(net, 'server1','hub','192.168.100.1/24')
-    #    set_ip(net, 'server2','hub','192.168.100.2/24')
-    #    set_ip(net, 'client','hub','192.168.100.3/24')
-
     reset_macs(net, 'server1', '10:00:00:00:00:{:02x}')
     reset_macs(net, 'server2', '20:00:00:00:00:{:02x}')
     reset_macs(net, 'client1', '30:00:00:00:00:{:02x}')
