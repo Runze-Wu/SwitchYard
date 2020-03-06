@@ -18,7 +18,7 @@ def main(net):
             continue
         except Shutdown:
             return
-
+        in_count += 1
         log_debug ("In {} received packet {} on {}".format(net.name, packet, dev))
         eth = packet.get_header(Ethernet)
         if eth is None:
@@ -28,11 +28,9 @@ def main(net):
         if eth.dst in mymacs:
             log_info("Received a packet intended for me")
         else:
-            in_count += 1
             for intf in my_interfaces:
                 if dev != intf.name:
                     out_count+=1
                     log_info('{} in: {}> out: {}>'.format(timestamp,in_count,out_count))
-                    # log_info ("Flooding packet {} to {}".format(packet, intf.name))
                     net.send_packet(intf, packet)
     net.shutdown()
