@@ -10,7 +10,7 @@ from switchyard.lib.userlib import *
 def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
-
+    forward_table=dict()
     while True:
         try:
             timestamp,input_port,packet = net.recv_packet()
@@ -18,13 +18,20 @@ def main(net):
             continue
         except Shutdown:
             return
-
         log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
         if packet[0].dst in mymacs:
-            log_debug ("Packet intended for me")
+            log_debug("Packet intended for me")
         else:
-            for intf in my_interfaces:
-                if input_port != intf.name:
-                    log_debug ("Flooding packet {} to {}".format(packet, intf.name))
-                    net.send_packet(intf.name, packet)
+            src_mac=str(packet[Ethernet].src)
+            dst_mac=str(packet[Ethernet].dst)
+            if src_mac not in forward_table.keys():
+                forward_table[src_mac]=input_port
+            if dst_mac in forward_table.keys():
+                log_debug('packet {} to {}'.format(packet,forward_table.get(dst_mac)))
+                net.send_packet(forward_table.get(dst_mac),packet)
+            else:
+                for intf in my_interfaces:
+                    if input_port != intf.name:
+                        log_debug ("Flooding packet {} to {}".format(packet, intf.name))
+                        net.send_packet(intf.name, packet)
     net.shutdown()
