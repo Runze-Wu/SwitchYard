@@ -30,25 +30,18 @@ class PySwitchTopo(Topo):
         # Host and link configuration
         #
         #
-        #   server1              server2
-        #          \            /
-        #           hub1----hub2
-        #          /            \
-        #   client1              client2
+        #      node1  node7 node4
+        #          \   |   /
+        #    node6-switch1-node5
+        #          /   |   \
+        #     node2  node8  node3
         #
-        self.addHost('server1', **nodeconfig)
-        self.addHost('server2', **nodeconfig)
-        self.addHost('switch1', **nodeconfig)
-        self.addHost('client1', **nodeconfig)
-        self.addHost('switch2', **nodeconfig)
-        self.addHost('client2', **nodeconfig)
-        for node in ['server1', 'client1']:
-            # all links are 10Mb/s, 100 millisecond prop delay
-            self.addLink(node, 'hub1', bw=10, delay='100ms')
-        for node in ['server2', 'client2']:
-            # all links are 10Mb/s, 100 millisecond prop delay
-            self.addLink(node, 'hub2', bw=10, delay='100ms')
-        self.addLink('hub1','hub2',bw=10,delay='100ms')
+        self.addHost('switch',**nodeconfig)
+        for i in range(2, 10):
+            self.addHost('node' + str(i - 1), **nodeconfig)
+        for i in range(2, 10):
+            self.addLink('node' + str(i - 1), 'switch', bw=10, delay='100ms')
+
 
 def set_ip(net, node1, node2, ip):
     node1 = net.get(node1)
@@ -75,16 +68,12 @@ def set_route(net, fromnode, prefix, nextnode):
 
 
 def setup_addressing(net):
-    reset_macs(net, 'server1', '10:00:00:00:00:{:02x}')
-    reset_macs(net, 'server2', '20:00:00:00:00:{:02x}')
-    reset_macs(net, 'client1', '30:00:00:00:00:{:02x}')
-    reset_macs(net, 'switch1', '40:00:00:00:00:{:02x}')
-    reset_macs(net, 'switch2', '50:00:00:00:00:{:02x}')
-    reset_macs(net, 'client2', '60:00:00:00:00:{:02x}')
-    set_ip(net, 'server1', 'hub1', '192.168.100.1/24')
-    set_ip(net, 'server2', 'hub2', '192.168.100.2/24')
-    set_ip(net, 'client1', 'hub1', '192.168.100.3/24')
-    set_ip(net, 'client2', 'hub2', '192.168.100.4/24')
+    reset_macs(net, 'switch', '10:00:00:00:00:{:02x}')
+    mac_last = '0:00:00:00:00:{:02x}'
+    ip_first = '1.1.1.'
+    for i in range(2, 10):
+        reset_macs(net, 'node' + str(i - 1), str(i) + mac_last)
+        set_ip(net, 'node' + str(i - 1),'switch', ip_first + str(i - 1) + '/24')
 
 
 def disable_ipv6(net):
