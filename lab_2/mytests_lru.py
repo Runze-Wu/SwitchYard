@@ -2,6 +2,8 @@
 
 from switchyard.lib.userlib import *
 import time
+
+
 def mk_pkt(hwsrc, hwdst, ipsrc, ipdst, reply=False):
     ether = Ethernet(src=hwsrc, dst=hwdst, ethertype=EtherType.IP)
     ippkt = IPv4(src=ipsrc, dst=ipdst, protocol=IPProtocol.ICMP, ttl=32)
@@ -12,26 +14,136 @@ def mk_pkt(hwsrc, hwdst, ipsrc, ipdst, reply=False):
         icmppkt.icmptype = ICMPType.EchoRequest
     return ether + ippkt + icmppkt
 
+
 def my_tests():
-    s = TestScenario("hub tests")
-    s.add_interface('eth0', '10:00:00:00:00:01')
-    s.add_interface('eth1', '10:00:00:00:00:02')
-    s.add_interface('eth2', '10:00:00:00:00:03')
+    s = TestScenario("lru tests")
+    case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (6, 7), (4, 5)]
+    for i in range(len(case) + 1):
+        s.add_interface('eth' + str(i), '90:00:00:00:00:0' + str(i))
+    except_table = [[], [1], [1, 2], [1, 3, 2], [1, 4, 3, 2], [1, 5, 4, 3, 2],
+                    [6, 1, 5, 4, 3], [5, 6, 1, 4, 3]]
+    # for i in range(len(case)):
+    #     cur_table = except_table[i]
+    #     print(cur_table)
+    #     mac_pair = (str(case[i][0]) + '0:00:00:00:00:00',
+    #                 str(case[i][1]) + '0:00:00:00:00:00')
+    #     ip_pair = (str(case[i][0]) + '.0.0.0', str(case[i][1]) + '.0.0.0')
+    #     mypkt = mk_pkt(mac_pair[0], mac_pair[1], ip_pair[0], ip_pair[1])
+    #     s.expect(
+    #         PacketInputEvent('eth' + str(case[i][0]), mypkt, display=Ethernet),
+    #         "Ethernet frame from mac {} to mac {}".format(
+    #             mac_pair[0], mac_pair[1]))
+    #     if mac_pair[1] in cur_table:
+    #         s.expect(
+    #             PacketOutputEvent("eth" + str(mac_pair[1]),
+    #                               mypkt,
+    #                               display=Ethernet),
+    #             "forward table should have mac {}'s port {}".format(
+    #                 mac_pair[1], mac_pair[1]))
+    #     else:
+    #         for i in range(8):
+    #             if i!=mac_pair[1] and i!=mac_pair[0]:
+    #                 s.expect(
+    #                     PacketOutputEvent('eth'+str(i), mypkt, displat=Ethernet),
+    #                     "forward table don't have mac {}'s port and flood out packet".
+    #                     format(mac_pair[1]))
 
-    # test case 1: add "30:00:00:00:00:02 : eth1" 
-    testpkt = mk_pkt("30:00:00:00:00:02", "ff:ff:ff:ff:ff:ff", "3.3.3.3", "255.255.255.255")
-    s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "An Ethernet frame with a broadcast destination address should arrive on eth1")
-    s.expect(PacketOutputEvent("eth0", testpkt, "eth2", testpkt, display=Ethernet), "The Ethernet frame with a broadcast destination address should be forwarded out ports eth0 and eth2")
-    s.expect(PacketInputTimeoutEvent(15.0),"wait for 15.0 s")
-    # test case 2: match "30:00:00:00:00:02 : eth1"   add "20:00:00:00:00:01 : eth0" 
-    reqpkt = mk_pkt("20:00:00:00:00:01", "30:00:00:00:00:02", '2.2.2.2','3.3.3.3')
-    s.expect(PacketInputEvent("eth0", reqpkt, display=Ethernet), "An Ethernet frame from 20:00:00:00:00:01 to 30:00:00:00:00:02 should arrive on eth0")
-    s.expect(PacketOutputEvent("eth1", reqpkt, "eth2",reqpkt, display=Ethernet), "Ethernet frame destined for 30:00:00:00:00:02 should be should be flooded out eth1 and eth2")
+    mypkt = mk_pkt(
+        str(1) + '0:00:00:00:00:00',
+        str(4) + '0:00:00:00:00:00',
+        str(1) + '.0.0.0',
+        str(4) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(1), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(1, 4))
+    s.expect(
+        PacketOutputEvent('eth0',
+                          mypkt,
+                          'eth2',
+                          mypkt,
+                          'eth3',
+                          mypkt,
+                          'eth4',
+                          mypkt,
+                          'eth5',
+                          mypkt,
+                          'eth6',
+                          mypkt,
+                          'eth7',
+                          mypkt,
+                          displat=Ethernet),
+        "forward table don't have mac4's port and flood out packet")
 
-    # test case 3: match "20:00:00:00:00:01 : eth0"   add "40:00:00:00:00:02 eth2"
-    resppkt = mk_pkt("40:00:00:00:00:02", "20:00:00:00:00:01", '4.4.4.4', '2.2.2.2')
-    s.expect(PacketInputEvent("eth2", resppkt, display=Ethernet), "An Ethernet frame from 30:00:00:00:00:02 to 20:00:00:00:00:01 should arrive on eth1")
-    s.expect(PacketOutputEvent("eth0", resppkt, display=Ethernet), "Ethernet frame destined to 20:00:00:00:00:01 should be send out on eth0")
+    mypkt = mk_pkt(
+        str(2) + '0:00:00:00:00:00',
+        str(1) + '0:00:00:00:00:00',
+        str(2) + '.0.0.0',
+        str(1) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(2), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(2, 1))
+    s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
+             "forward table should have mac1's port")
+    mypkt = mk_pkt(
+        str(3) + '0:00:00:00:00:00',
+        str(1) + '0:00:00:00:00:00',
+        str(3) + '.0.0.0',
+        str(1) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(3), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(3, 1))
+    s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
+             "forward table should have mac1's port")
+    mypkt = mk_pkt(
+        str(4) + '0:00:00:00:00:00',
+        str(1) + '0:00:00:00:00:00',
+        str(4) + '.0.0.0',
+        str(1) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(4), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(4, 1))
+    s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
+             "forward table should have mac1's port")
+    mypkt = mk_pkt(
+        str(5) + '0:00:00:00:00:00',
+        str(1) + '0:00:00:00:00:00',
+        str(5) + '.0.0.0',
+        str(1) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(5), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(5, 1))
+    s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
+             "forward table should have mac1's port")
+
+    mypkt = mk_pkt(
+        str(6) + '0:00:00:00:00:00',
+        str(7) + '0:00:00:00:00:00',
+        str(6) + '.0.0.0',
+        str(7) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(6), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(6, 7))
+    s.expect(
+        PacketOutputEvent('eth0',
+                          mypkt,
+                          'eth1',
+                          mypkt,
+                          'eth2',
+                          mypkt,
+                          'eth3',
+                          mypkt,
+                          'eth4',
+                          mypkt,
+                          'eth5',
+                          mypkt,
+                          'eth7',
+                          mypkt,
+                          displat=Ethernet),
+        "forward table don't have mac7's port and flood out packet")
+    mypkt = mk_pkt(
+        str(4) + '0:00:00:00:00:00',
+        str(5) + '0:00:00:00:00:00',
+        str(4) + '.0.0.0',
+        str(5) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(4), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(4, 5))
+    s.expect(PacketOutputEvent('eth5', mypkt, display=Ethernet),
+             "forward table should have mac5's port")
     return s
+
 
 scenario = my_tests()
