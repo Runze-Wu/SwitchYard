@@ -22,7 +22,7 @@ def main(net):
         now_time=time.time()
         print(now_time)
         for key,value in list(forward_table.items()):
-            if now_time-value[1]>=1.0:
+            if now_time-value[1]>=10.0:
                 log_info("del {}:{}".format(key,value))
                 forward_table.pop(key)
         print(forward_table)
