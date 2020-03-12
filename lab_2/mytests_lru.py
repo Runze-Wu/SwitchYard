@@ -18,6 +18,7 @@ def mk_pkt(hwsrc, hwdst, ipsrc, ipdst, reply=False):
 def my_tests():
     s = TestScenario("lru tests")
     case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (6, 7), (4, 5)]
+
     for i in range(len(case) + 1):
         s.add_interface('eth' + str(i), '90:00:00:00:00:0' + str(i))
     except_table = [[], [1], [1, 2], [1, 3, 2], [1, 4, 3, 2], [1, 5, 4, 3, 2],
@@ -143,6 +144,7 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(4, 5))
     s.expect(PacketOutputEvent('eth5', mypkt, display=Ethernet),
              "forward table should have mac5's port")
+
     return s
 
 
