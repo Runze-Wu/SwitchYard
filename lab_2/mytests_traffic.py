@@ -17,14 +17,14 @@ def mk_pkt(hwsrc, hwdst, ipsrc, ipdst, reply=False):
 
 def my_tests():
     s = TestScenario("traffic tests")
-    case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (2, 3), (4, 3), (6, 7),
-            (4, 5), (4, 3)]
+    case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (2, 3), (2, 4), (3, 2),
+            (6, 7), (4, 5), (4, 3)]
 
     for i in range(8):
         s.add_interface('eth' + str(i), '90:00:00:00:00:0' + str(i))
-    except_table = [[], [1], [1, 2], [1, 3, 2], [1, 4, 3, 2], [1, 5, 4, 3, 2],
-                    [1, 2, 3, 4, 5], [1, 3, 2, 4, 5], [1, 3, 2, 4, 6],
-                    [1, 3, 4, 2, 6]]
+    except_table = [[], [1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5],
+                    [1, 3, 2, 4, 5], [1, 3, 4, 2, 5], [1, 2, 3, 4, 5],
+                    [1, 2, 3, 4, 6], [1, 2, 3, 4, 6], [1, 3, 2, 4, 6]]
     # 1 to 2
     mypkt = mk_pkt(
         str(1) + '0:00:00:00:00:00',
@@ -100,15 +100,25 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(2, 3))
     s.expect(PacketOutputEvent('eth3', mypkt, display=Ethernet),
              "forward table should have mac3's port")
-    # 4 to 3
+    # 2 to 4
     mypkt = mk_pkt(
+        str(2) + '0:00:00:00:00:00',
         str(4) + '0:00:00:00:00:00',
+        str(2) + '.0.0.0',
+        str(4) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(2), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(2, 4))
+    s.expect(PacketOutputEvent('eth4', mypkt, display=Ethernet),
+             "forward table should have mac4's port")
+    # 3 to 2
+    mypkt = mk_pkt(
         str(3) + '0:00:00:00:00:00',
-        str(4) + '.0.0.0',
-        str(3) + '.0.0.0')
-    s.expect(PacketInputEvent('eth' + str(4), mypkt, display=Ethernet),
-             "Ethernet frame from mac {} to mac {}".format(4, 3))
-    s.expect(PacketOutputEvent('eth3', mypkt, display=Ethernet),
+        str(2) + '0:00:00:00:00:00',
+        str(3) + '.0.0.0',
+        str(2) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(3), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(3, 2))
+    s.expect(PacketOutputEvent('eth2', mypkt, display=Ethernet),
              "forward table should have mac3's port")
     # 6 to 7
     mypkt = mk_pkt(
