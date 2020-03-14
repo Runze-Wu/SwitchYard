@@ -22,8 +22,7 @@ def main(net):
         if packet[0].dst in mymacs:
             log_debug("Packet intended for me")
         else:
-            src_mac=str(packet[Ethernet].src)
-            dst_mac=str(packet[Ethernet].dst)
+            src_mac,dst_mac=str(packet[Ethernet].src),str(packet[Ethernet].dst)
             if src_mac not in forward_table.keys():
                 forward_table[src_mac]=input_port
             if dst_mac in forward_table.keys():

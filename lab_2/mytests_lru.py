@@ -19,36 +19,11 @@ def my_tests():
     s = TestScenario("lru tests")
     case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (6, 7), (4, 5)]
 
-    for i in range(len(case) + 1):
+    for i in range(8):
         s.add_interface('eth' + str(i), '90:00:00:00:00:0' + str(i))
     except_table = [[], [1], [1, 2], [1, 3, 2], [1, 4, 3, 2], [1, 5, 4, 3, 2],
                     [6, 1, 5, 4, 3], [5, 6, 1, 4, 3]]
-    # for i in range(len(case)):
-    #     cur_table = except_table[i]
-    #     print(cur_table)
-    #     mac_pair = (str(case[i][0]) + '0:00:00:00:00:00',
-    #                 str(case[i][1]) + '0:00:00:00:00:00')
-    #     ip_pair = (str(case[i][0]) + '.0.0.0', str(case[i][1]) + '.0.0.0')
-    #     mypkt = mk_pkt(mac_pair[0], mac_pair[1], ip_pair[0], ip_pair[1])
-    #     s.expect(
-    #         PacketInputEvent('eth' + str(case[i][0]), mypkt, display=Ethernet),
-    #         "Ethernet frame from mac {} to mac {}".format(
-    #             mac_pair[0], mac_pair[1]))
-    #     if mac_pair[1] in cur_table:
-    #         s.expect(
-    #             PacketOutputEvent("eth" + str(mac_pair[1]),
-    #                               mypkt,
-    #                               display=Ethernet),
-    #             "forward table should have mac {}'s port {}".format(
-    #                 mac_pair[1], mac_pair[1]))
-    #     else:
-    #         for i in range(8):
-    #             if i!=mac_pair[1] and i!=mac_pair[0]:
-    #                 s.expect(
-    #                     PacketOutputEvent('eth'+str(i), mypkt, displat=Ethernet),
-    #                     "forward table don't have mac {}'s port and flood out packet".
-    #                     format(mac_pair[1]))
-
+    # 1 to 4
     mypkt = mk_pkt(
         str(1) + '0:00:00:00:00:00',
         str(4) + '0:00:00:00:00:00',
@@ -71,9 +46,9 @@ def my_tests():
                           mypkt,
                           'eth7',
                           mypkt,
-                          displat=Ethernet),
+                          display=Ethernet),
         "forward table don't have mac4's port and flood out packet")
-
+    # 2 to 1
     mypkt = mk_pkt(
         str(2) + '0:00:00:00:00:00',
         str(1) + '0:00:00:00:00:00',
@@ -83,6 +58,7 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(2, 1))
     s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
              "forward table should have mac1's port")
+    # 3 to 1
     mypkt = mk_pkt(
         str(3) + '0:00:00:00:00:00',
         str(1) + '0:00:00:00:00:00',
@@ -92,6 +68,7 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(3, 1))
     s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
              "forward table should have mac1's port")
+    # 4 to 1
     mypkt = mk_pkt(
         str(4) + '0:00:00:00:00:00',
         str(1) + '0:00:00:00:00:00',
@@ -101,6 +78,7 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(4, 1))
     s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
              "forward table should have mac1's port")
+    # 5 to 1
     mypkt = mk_pkt(
         str(5) + '0:00:00:00:00:00',
         str(1) + '0:00:00:00:00:00',
@@ -110,7 +88,7 @@ def my_tests():
              "Ethernet frame from mac {} to mac {}".format(5, 1))
     s.expect(PacketOutputEvent('eth1', mypkt, display=Ethernet),
              "forward table should have mac1's port")
-
+    # 6 to 7
     mypkt = mk_pkt(
         str(6) + '0:00:00:00:00:00',
         str(7) + '0:00:00:00:00:00',
@@ -133,8 +111,9 @@ def my_tests():
                           mypkt,
                           'eth7',
                           mypkt,
-                          displat=Ethernet),
+                          display=Ethernet),
         "forward table don't have mac7's port and flood out packet")
+    # 4 to 5
     mypkt = mk_pkt(
         str(4) + '0:00:00:00:00:00',
         str(5) + '0:00:00:00:00:00',

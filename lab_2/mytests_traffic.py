@@ -48,7 +48,7 @@ def my_tests():
                           mypkt,
                           'eth7',
                           mypkt,
-                          displat=Ethernet),
+                          display=Ethernet),
         "forward table don't have mac2's port and flood out packet")
     # 2 to 1
     mypkt = mk_pkt(
@@ -133,7 +133,7 @@ def my_tests():
                           mypkt,
                           'eth7',
                           mypkt,
-                          displat=Ethernet),
+                          display=Ethernet),
         "forward table don't have mac7's port and flood out packet")
     # 4 to 5
     mypkt = mk_pkt(
@@ -158,7 +158,7 @@ def my_tests():
                           mypkt,
                           'eth7',
                           mypkt,
-                          displat=Ethernet),
+                          display=Ethernet),
         "forward table don't have mac5's port and flood out packet")
     # 4 to 3
     mypkt = mk_pkt(

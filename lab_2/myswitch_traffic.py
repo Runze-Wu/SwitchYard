@@ -9,8 +9,7 @@ from switchyard.lib.userlib import *
 def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
-    forward_table=list()
-    max_len=5
+    forward_table,max_len=list(),5
     while True:
         try:
             timestamp,input_port,packet = net.recv_packet()
@@ -22,15 +21,12 @@ def main(net):
         if packet[0].dst in mymacs:
             log_debug("Packet intended for me")
         else:
-            src_mac=str(packet[Ethernet].src)
-            dst_mac=str(packet[Ethernet].dst)
-            log_info('from {} to {}'.format(src_mac,dst_mac))
+            src_mac,dst_mac=str(packet[Ethernet].src),str(packet[Ethernet].dst)
+            log_debug('from {} to {}'.format(src_mac,dst_mac))
             src_flag,dst_flag=False,False 
             for i in range(len(forward_table)):
                 if forward_table[i][0]==src_mac:
-                    forward_table[i][1]=input_port
-                    forward_table[i][2]+=1
-                    src_flag=True
+                    src_flag,forward_table[i][1],forward_table[i][2]=True,input_port,forward_table[i][2]+1
                     break
             if src_flag==False:
                 if len(forward_table)==max_len:
@@ -38,9 +34,8 @@ def main(net):
                 forward_table.insert(0,[src_mac,input_port,0])
             for i in range(len(forward_table)):
                 if forward_table[i][0]==dst_mac:
-                    forward_table[i][2]+=1
+                    dst_flag,forward_table[i][2]=True,forward_table[i][2]+1
                     net.send_packet(forward_table[i][1],packet)
-                    dst_flag=True
                     break
             if dst_flag==False:
                 for intf in my_interfaces:
@@ -48,5 +43,4 @@ def main(net):
                         log_debug ("Flooding packet {} to {}".format(packet, intf.name))
                         net.send_packet(intf.name, packet)
             forward_table.sort(key=lambda x:x[2],reverse=True)
-            print(forward_table)
     net.shutdown()

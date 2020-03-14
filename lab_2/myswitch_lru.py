@@ -9,8 +9,7 @@ from switchyard.lib.userlib import *
 def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
-    forward_table=list()
-    max_len=5
+    forward_table,max_len=list(),5
     while True:
         try:
             timestamp,input_port,packet = net.recv_packet()
@@ -22,14 +21,12 @@ def main(net):
         if packet[0].dst in mymacs:
             log_debug("Packet intended for me")
         else:
-            src_mac=str(packet[Ethernet].src)
-            dst_mac=str(packet[Ethernet].dst)
-            log_info('from {} to {}'.format(src_mac,dst_mac))
+            src_mac,dst_mac=str(packet[Ethernet].src),str(packet[Ethernet].dst)
+            log_debug('from {} to {}'.format(src_mac,dst_mac))
             src_flag,dst_flag=False,False 
             for i in range(len(forward_table)):
                 if forward_table[i][0]==src_mac:
-                    forward_table[i][1]=input_port
-                    src_flag=True
+                    sr_flag,forward_table[i][1]=True,input_port
                     break
             if src_flag==False:
                 if len(forward_table)==max_len:
@@ -37,11 +34,10 @@ def main(net):
                 forward_table.insert(0,[src_mac,input_port])
             for i in range(len(forward_table)):
                 if forward_table[i][0]==dst_mac:
-                    dst_pair=forward_table[i]
+                    dst_flag,dst_pair=True,forward_table[i]
                     forward_table.remove(forward_table[i])
                     forward_table.insert(0,dst_pair)
                     net.send_packet(dst_pair[1],packet)
-                    dst_flag=True
                     break
             if dst_flag==False:
                 for intf in my_interfaces:
