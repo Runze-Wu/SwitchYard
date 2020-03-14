@@ -26,7 +26,7 @@ def main(net):
             src_flag,dst_flag=False,False 
             for i in range(len(forward_table)):
                 if forward_table[i][0]==src_mac:
-                    sr_flag,forward_table[i][1]=True,input_port
+                    src_flag,forward_table[i][1]=True,input_port
                     break
             if src_flag==False:
                 if len(forward_table)==max_len:
