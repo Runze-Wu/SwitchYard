@@ -17,12 +17,12 @@ def mk_pkt(hwsrc, hwdst, ipsrc, ipdst, reply=False):
 
 def my_tests():
     s = TestScenario("lru tests")
-    case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (6, 7), (4, 5)]
+    case = [(1, 4), (2, 1), (3, 1), (4, 1), (5, 1), (6, 7),(4,2), (4, 5)]
 
     for i in range(8):
         s.add_interface('eth' + str(i), '90:00:00:00:00:0' + str(i))
     except_table = [[], [1], [1, 2], [1, 3, 2], [1, 4, 3, 2], [1, 5, 4, 3, 2],
-                    [6, 1, 5, 4, 3], [5, 6, 1, 4, 3]]
+                    [6, 1, 5, 4, 3],[6,1,5,4,3], [5, 6, 1, 4, 3]]
     # 1 to 4
     mypkt = mk_pkt(
         str(1) + '0:00:00:00:00:00',
@@ -113,6 +113,31 @@ def my_tests():
                           mypkt,
                           display=Ethernet),
         "forward table don't have mac7's port and flood out packet")
+     # 4 to 2
+    mypkt = mk_pkt(
+        str(4) + '0:00:00:00:00:00',
+        str(2) + '0:00:00:00:00:00',
+        str(4) + '.0.0.0',
+        str(2) + '.0.0.0')
+    s.expect(PacketInputEvent('eth' + str(4), mypkt, display=Ethernet),
+             "Ethernet frame from mac {} to mac {}".format(4, 2))
+    s.expect(
+        PacketOutputEvent('eth0',
+                          mypkt,
+                          'eth1',
+                          mypkt,
+                          'eth2',
+                          mypkt,
+                          'eth3',
+                          mypkt,
+                          'eth5',
+                          mypkt,
+                          'eth6',
+                          mypkt,
+                          'eth7',
+                          mypkt,
+                          display=Ethernet),
+        "forward table don't have mac2's port and flood out packet")
     # 4 to 5
     mypkt = mk_pkt(
         str(4) + '0:00:00:00:00:00',
