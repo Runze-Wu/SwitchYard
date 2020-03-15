@@ -1,7 +1,6 @@
 xenv
 *.pyc
 __pycache__
-*.pcap
 .coverage
 htmlcov
 sandbox
@@ -10,6 +9,6 @@ switchyard.egg-info
 build
 dist
 # venv
-syenv/
+wrz/
 # vscode
 .vscode/
