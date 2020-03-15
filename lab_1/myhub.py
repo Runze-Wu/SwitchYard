@@ -31,6 +31,6 @@ def main(net):
             for intf in my_interfaces:
                 if dev != intf.name:
                     out_count+=1
-                    log_info('{} in: {}> out: {}>'.format(timestamp,in_count,out_count))
                     net.send_packet(intf, packet)
+            log_info('{} in: {}> out: {}>'.format(timestamp,in_count,out_count))
     net.shutdown()
