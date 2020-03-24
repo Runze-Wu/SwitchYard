@@ -1,6 +1,6 @@
 xenv
 *.pyc
-lab_2/*.srpy
+*.srpy
 __pycache__
 .coverage
 htmlcov
