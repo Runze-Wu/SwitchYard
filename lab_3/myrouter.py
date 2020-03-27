@@ -22,8 +22,8 @@ class Router(object):
     def refresh_arp_table(self, time):
         for key, value in list(self.arp_table.items()):
             if time - value[1] >= self.max_arp_time:
-                log_info("del {}:{}".format(key, value))
-                arp_table.pop(key)
+                log_info("del {}".format(self.arp_table[key]))
+                self.arp_table.pop(key)
 
     def forward_packet(self, port, packet):        
         now_time = time.time()
@@ -40,13 +40,13 @@ class Router(object):
         return
 
     def arp_request(self, port, packet):
-        log_info('Got a ARP Request')
+        #log_info('Got a ARP Request')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,
-                                         arp.operation))
+        log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,arp.operation))
         if dst_ip in self.mydic:
             self.arp_table[src_ip] = (src_mac, time.time())
+            log_info("update {}".format(self.arp_table))
             ether = Ethernet(src=self.mydic[dst_ip],
                              dst=src_mac,
                              ethertype=EtherType.ARP)
