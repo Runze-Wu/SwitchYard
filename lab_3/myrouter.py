@@ -37,6 +37,11 @@ class Router(object):
             return
 
     def arp_reply(self, port, packet):
+        arp = packet[Arp]
+        src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
+        log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,arp.operation))
+        self.arp_table[src_ip] = (src_mac, time.time())
+        log_info("update {}".format(self.arp_table))
         return
 
     def arp_request(self, port, packet):
@@ -44,9 +49,9 @@ class Router(object):
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
         log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,arp.operation))
+        self.arp_table[src_ip] = (src_mac, time.time())
+        log_info("update {}".format(self.arp_table))
         if dst_ip in self.mydic:
-            self.arp_table[src_ip] = (src_mac, time.time())
-            log_info("update {}".format(self.arp_table))
             ether = Ethernet(src=self.mydic[dst_ip],
                              dst=src_mac,
                              ethertype=EtherType.ARP)
