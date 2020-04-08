@@ -7,36 +7,72 @@ import sys
 import os
 import time
 from switchyard.lib.userlib import *
-
+from switchyard.lib.address import *
+class classname(object):
+    pass
 
 class Router(object):
     def __init__(self, net):
         self.net = net
         self.arp_table = dict()
+        #subnet netmask nexthopip interface
+        self.router_table=list()
         self.mydic = {
             intf.ipaddr: intf.ethaddr
             for intf in self.net.interfaces()
         }
         self.max_arp_time = 10.0
-        # other initialization stuff here
+        self.built_router_table("forwarding_table.txt")
+        
+    # other initialization stuff here
     def refresh_arp_table(self, time):
         for key, value in list(self.arp_table.items()):
             if time - value[1] >= self.max_arp_time:
                 log_info("del {}".format(self.arp_table[key]))
                 self.arp_table.pop(key)
 
-    def forward_packet(self, port, packet):        
+    def built_router_table(self,filename):
+        myfile=open(filename,'r');
+        for line in myfile.readlines():
+            line=line.split()
+            self.router_table.append((line[0],line[1],line[2],line[3]))
+        print("build from file: {}".format(self.router_table))
+        myfile.close()
+        for intf in self.net.interfaces():
+            self.router_table.append((str(intf.ipaddr),str(intf.netmask),'#',str(intf.name)))
+        print("build from interface: {}".format(self.router_table))
+        return
+    
+    def forward_packet(self, port, packet):
         now_time = time.time()
-        self.refresh_arp_table(now_time)
+        #self.refresh_arp_table(now_time)
         if packet[Ethernet].ethertype == EtherType.ARP:
             if packet[Arp].operation == ArpOperation.Request:
-                self.arp_request(port, packet)
+                self.process_arp_request(port, packet)
             elif packet[Arp].operation == ArpOperation.Reply:
-                self.arp_reply(port, packet)
-        elif packet[Ethernet].ethertype == EtherType.IPv4:
+                self.process_arp_reply(port, packet)
+        elif packet[Arp].targetprotoaddr in self.mydic:
+            log_debug("Packet intended for me")
             return
+        elif packet[Ethernet].ethertype == EtherType.IPv4:
+            self.process_IP_Packet(packet)
+            return
+        return
 
-    def arp_reply(self, port, packet):
+    def match_subnet(self,dst_ip):
+        for item in (self.router_table):
+            subnet=IPv4Network(str(item[0]+'/'+item[1]))
+            if dst_ip in subnet:
+                return item
+        return None
+
+    def process_IP_Packet(self,packet):
+        return
+
+    def arp_query(self,packet):
+        return
+    def process_arp_reply(self, port, packet):
+        log_info('Got a ARP Reply')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
         log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,arp.operation))
@@ -44,8 +80,8 @@ class Router(object):
         log_info("update {}".format(self.arp_table))
         return
 
-    def arp_request(self, port, packet):
-        #log_info('Got a ARP Request')
+    def process_arp_request(self, port, packet):
+        log_info('Got a ARP Request')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
         log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,arp.operation))
@@ -73,7 +109,6 @@ class Router(object):
             gotpkt = True
             try:
                 timestamp, dev, pkt = self.net.recv_packet(timeout=1.0)
-                self.forward_packet(dev,pkt)
             except NoPackets:
                 log_debug("No packets available in recv_packet")
                 gotpkt = False
@@ -81,7 +116,8 @@ class Router(object):
                 log_debug("Got shutdown signal")
                 break
             if gotpkt:
-               log_debug("Got a packet: {}".format(str(pkt)))
+                log_debug("Got a packet: {}".format(str(pkt)))
+                self.forward_packet(dev,pkt)
 
 
 def main(net):
