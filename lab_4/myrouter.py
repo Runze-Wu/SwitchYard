@@ -54,7 +54,6 @@ class Router(object):
 
     def forward_packet(self, port, packet):
         now_time = time.time()
-        self.arp_repeat()
         if packet[Ethernet].ethertype == EtherType.ARP:
             if packet[Arp].operation == ArpOperation.Request:
                 self.process_arp_request(port, packet)
@@ -196,6 +195,7 @@ class Router(object):
                 timestamp, dev, pkt = self.net.recv_packet(timeout=1.0)
             except NoPackets:
                 log_debug("No packets available in recv_packet")
+                self.arp_repeat()
                 gotpkt = False
             except Shutdown:
                 log_debug("Got shutdown signal")
