@@ -9,7 +9,6 @@ import time
 from switchyard.lib.userlib import *
 from switchyard.lib.address import *
 
-
 # class PktCache:
 #     def __init__(self):
 #         self.cache_packet = dict()
@@ -111,20 +110,30 @@ class Router(object):
             else:
                 if nexthop not in self.cache_packet:
                     self.cache_packet[nexthop] = list()
-                    self.cache_packet[nexthop].append(time.time())
+                    self.cache_packet[nexthop].append([time.time(), 0])
                 self.cache_packet[nexthop].append((packet, tar_route[3]))
                 self.arp_repeat()
         return
 
+    def arp_query(self, src_mac, src_ip, dst_ip, port):
+        print(src_mac, src_ip, dst_ip, port)
+        print(type(src_mac), type(src_ip), type(dst_ip))
+        request_pkt = create_ip_arp_request(src_mac, src_ip, dst_ip)
+        print("Arp request: " + str(request_pkt) + str(port))
+        self.net.send_packet(port, request_pkt)
+
     def arp_repeat(self):
-        for item in list(self.cache_packet.keys()):
-            tar_route = self.match_subnet(item)
-            if tar_route is None:
-                log_info("can't match to any subnet")
-            else:
+        now = time.time()
+        cache_packet_list = list(self.cache_packet.items())
+        cache_packet_list.sort(key=lambda x: x[1][0][0])
+        print(cache_packet_list)
+        for item in cache_packet_list:
+            if  item[1][0][1]<=4 and now - item[1][0][0] - item[1][0][1] >= 0.0:
+                # if item[1][0][1] == 0:
+                tar_route = self.match_subnet(item[0])
                 nexthop = tar_route[2]
                 if tar_route[2] == '#':
-                    nexthop = item
+                    nexthop = item[0]
                 src_mac = EthAddr()
                 for intf in self.net.interfaces():
                     if tar_route[3] == intf.name:
@@ -133,19 +142,11 @@ class Router(object):
                 nexthop = IPv4Address(nexthop)
                 self.arp_query(src_mac, IPv4Address(tar_route[0]), nexthop,
                                tar_route[3])
-
-    def arp_query(self, src_mac, src_ip, dst_ip, port):
-        now = time.time()
-        if self.cache_packet[dst_ip][0] + 4 <= now:
-            log_info("drop packet no arp reply {}".format(
-                self.cache_packet[dst_ip]))
-            return False
-        print(src_mac, src_ip, dst_ip, port)
-        print(type(src_mac), type(src_ip), type(dst_ip))
-        request_pkt = create_ip_arp_request(src_mac, src_ip, dst_ip)
-        print("Arp request: " + str(request_pkt) + str(port))
-        self.net.send_packet(port, request_pkt)
-        return True
+                self.cache_packet[item[0]][0][1] += 1
+            elif item[1][0][1] >= 5 or now - item[1][0][0] >= 5.0:
+                # elif item[1][0][1] >= 4:
+                self.cache_packet.pop(item[0])
+            
 
     def process_arp_reply(self, port, packet):
         log_info('Got a ARP Reply')
