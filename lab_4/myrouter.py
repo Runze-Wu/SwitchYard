@@ -168,7 +168,7 @@ class Router(object):
         log_info('Got a ARP Reply')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,
+        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
                                          arp.operation))
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
@@ -184,13 +184,12 @@ class Router(object):
         log_info('Got a ARP Request')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {}".format(src_mac, src_ip, dst_mac, dst_ip,
+        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
                                          arp.operation))
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
         if dst_ip in self.ip_mac:
-            arppacket = create_ip_arp_request(self.ip_mac[dst_ip], dst_ip,
-                                              src_ip)
+            arppacket=create_ip_arp_reply(self.ip_mac[dst_ip],src_mac,dst_ip,src_ip)
             log_info(arppacket)
             self.net.send_packet(port, arppacket)
 
