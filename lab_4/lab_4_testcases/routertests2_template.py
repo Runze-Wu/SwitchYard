@@ -169,8 +169,69 @@ def router_stage2():
                        ttl=63)
     s.expect(PacketOutputEvent("router-eth2", rep_ping, display=IPv4),
              '10.10.1.254 response for 172.16.42.2 leave out on router-eth2')
-    
-    
+
+    # case4  three packets send for the same ip (waiting for arp mac)
+    req_ping_1 = mk_ping('33:00:00:00:00:00',
+                         '10:00:00:00:00:03',
+                         '172.16.42.2',
+                         '172.16.128.1',
+                         ttl=5)
+    req_ping_2 = mk_ping('11:00:00:00:00:00',
+                         '10:00:00:00:00:02',
+                         '10.10.1.254',
+                         '172.16.128.1',
+                         ttl=4)
+    req_ping_3 = mk_ping('33:00:00:00:00:00',
+                         '10:00:00:00:00:03',
+                         '172.16.42.2',
+                         '172.16.128.1',
+                         ttl=3)
+    s.expect(PacketInputEvent("router-eth2", req_ping_1, display=IPv4),
+             '172.16.42.2 ping for 172.16.128.1 arrive on router-eth2')
+    req_arp_1 = mk_arpreq('10:00:00:00:00:02', '10.10.0.1', '10.10.0.254')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "look up nexthop:10.10.0.254's mac")
+    s.expect(PacketInputEvent("router-eth1", req_ping_2, display=IPv4),
+             '10.10.1.254 ping for 172.16.128.1 arrive on router-eth1')
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.0.254's mac")
+    s.expect(PacketInputEvent("router-eth2", req_ping_3, display=IPv4),
+             '172.16.42.2 ping for 172.16.128.1 arrive on router-eth2')
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.0.254's mac")
+    rep_arp_1 = mk_arpresp(req_arp_1, '44:00:00:00:00:00')
+    s.expect(PacketInputEvent("router-eth1", rep_arp_1, display=Arp),
+             '10.10.0.254 arp reply arrive an router-eth1')
+    req_ping_1 = mk_ping('10:00:00:00:00:02',
+                         '44:00:00:00:00:00',
+                         '172.16.42.2',
+                         '172.16.128.1',
+                         ttl=4)
+    req_ping_2 = mk_ping('10:00:00:00:00:02',
+                         '44:00:00:00:00:00',
+                         '10.10.1.254',
+                         '172.16.128.1',
+                         ttl=3)
+    req_ping_3 = mk_ping('10:00:00:00:00:02',
+                         '44:00:00:00:00:00',
+                         '172.16.42.2',
+                         '172.16.128.1',
+                         ttl=2)
+    s.expect(
+        PacketOutputEvent("router-eth1", req_ping_1, display=IPv4),
+        '172.16.42.2 ping for 172.16.128.1 leave out on router-eth1 through 10.10.0.254'
+    )
+    s.expect(
+        PacketOutputEvent("router-eth1", req_ping_2, display=IPv4),
+        '10.10.1.254 ping for 172.16.128.1 leave out on router-eth1 through 10.10.0.254'
+    )
+    s.expect(
+        PacketOutputEvent("router-eth1", req_ping_3, display=IPv4),
+        'second 172.16.42.2 ping for 172.16.128.1 leave out on router-eth1 through 10.10.0.254'
+    )
+
     return s
 
 

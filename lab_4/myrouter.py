@@ -139,13 +139,19 @@ class Router(object):
                 self.IP_forward(packet, tar_route[3],
                                 self.arp_table[nexthop][0])
             else:
+                has_same_arp=False
                 if tar_route[2]!='#':
                     nexthop_route = self.match_subnet(nexthop)
                     if nexthop_route is None:
                         return
+                if nexthop in self.mycache.cache_packet:
+                    has_same_arp=True
                 request_pkt = self.mycache.AddPacket(
                         src_mac, self.mac_ip[src_mac], nexthop,
                         packet, tar_route[3])
+                if has_same_arp:
+                    log_info("already has the same arp request")
+                    return
                 print("Arp request: " + str(request_pkt))
                 self.net.send_packet(request_pkt[1], request_pkt[0])
         return
