@@ -10,18 +10,20 @@ import time
 from switchyard.lib.userlib import *
 from switchyard.lib.address import *
 
+
 class PktCache:
     def __init__(self):
         self.cache_packet = dict()
 
-    def AddPacket(self,src_mac,src_ip,dst_ip,packet,port):
+    def AddPacket(self, src_mac, src_ip, dst_ip, packet, port):
         if dst_ip not in self.cache_packet:
-            self.cache_packet[dst_ip]=list()
-            self.cache_packet[dst_ip].append([time.time(),1,src_ip,src_mac,port])
+            self.cache_packet[dst_ip] = list()
+            self.cache_packet[dst_ip].append(
+                [time.time(), 1, src_ip, src_mac, port])
         self.cache_packet[dst_ip].append(packet)
-        return (create_ip_arp_request(src_mac,src_ip,dst_ip),port)
+        return (create_ip_arp_request(src_mac, src_ip, dst_ip), port)
 
-    def GetArpReply(self,get_ip):
+    def GetArpReply(self, get_ip):
         if get_ip in self.cache_packet:
             return self.cache_packet[get_ip]
         return list()
@@ -30,31 +32,35 @@ class PktCache:
         now = time.time()
         cache_packet_list = list(self.cache_packet.items())
         cache_packet_list.sort(key=lambda x: x[1][0][0])
-        # print(cache_packet_list)
-        arp_packets=list()
+        arp_packets = list()
         for item in cache_packet_list:
-            if item[1][0][1] <= 4 and now - item[1][0][0] - item[1][0][1] >= 0.0:
-                port,src_mac,src_ip,nexthop= item[1][0][4],item[1][0][3],item[1][0][2],item[0]
-                arp_packets.append((create_ip_arp_request(src_mac,src_ip,nexthop),port))
+            if item[1][0][
+                    1] <= 4 and now - item[1][0][0] - item[1][0][1] >= 0.0:
+                port, src_mac, src_ip, nexthop = item[1][0][4], item[1][0][
+                    3], item[1][0][2], item[0]
+                arp_packets.append(
+                    (create_ip_arp_request(src_mac, src_ip, nexthop), port))
                 self.cache_packet[item[0]][0][1] += 1
-            elif item[1][0][1] >= 5 or now - item[1][0][0] >= 5.0:
+            elif item[1][0][1] >= 5 or now - item[1][0][0] > 4.0:
                 self.cache_packet.pop(item[0])
         return arp_packets
+
     pass
+
 
 class Router(object):
     def __init__(self, net):
         self.net = net
         self.arp_table = dict()
-        self.mycache=PktCache()
+        self.mycache = PktCache()
         #subnet netmask nexthopip interface
         self.router_table = list()
-        self.port_mac={
-            intf.name:intf.ethaddr
+        self.port_mac = {
+            intf.name: intf.ethaddr
             for intf in self.net.interfaces()
         }
         self.mac_ip = {
-             intf.ethaddr:intf.ipaddr
+            intf.ethaddr: intf.ipaddr
             for intf in self.net.interfaces()
         }
         self.ip_mac = {
@@ -102,8 +108,7 @@ class Router(object):
         return
 
     def match_subnet(self, dst_ip):
-        maxlen = 0
-        tar_route = None
+        maxlen, tar_route = 0, None
         for item in self.router_table:
             subnet = IPv4Network(item[0] + '/' + item[1], False)
             if dst_ip in subnet:
@@ -112,9 +117,7 @@ class Router(object):
         return tar_route
 
     def IP_forward(self, packet, port, dst_mac):
-        packet[Ethernet].dst = dst_mac
-        packet[IPv4].ttl = packet[IPv4].ttl - 1
-        packet[IPv4].checksum
+        packet[Ethernet].dst, packet[IPv4].ttl = dst_mac, packet[IPv4].ttl - 1
         log_info(packet)
         self.net.send_packet(port, packet)
 
@@ -129,7 +132,7 @@ class Router(object):
         if tar_route is None:
             log_info("can't match to any subnet")
         else:
-            src_mac=self.port_mac[tar_route[3]]
+            src_mac = self.port_mac[tar_route[3]]
             packet[Ethernet].src = src_mac
             nexthop = tar_route[2]
             if tar_route[2] == '#':
@@ -139,16 +142,15 @@ class Router(object):
                 self.IP_forward(packet, tar_route[3],
                                 self.arp_table[nexthop][0])
             else:
-                has_same_arp=False
-                if tar_route[2]!='#':
-                    nexthop_route = self.match_subnet(nexthop)
-                    if nexthop_route is None:
-                        return
+                has_same_arp = False
+                if tar_route[2] != '#' and self.match_subnet(nexthop) is None:
+                    return
                 if nexthop in self.mycache.cache_packet:
-                    has_same_arp=True
-                request_pkt = self.mycache.AddPacket(
-                        src_mac, self.mac_ip[src_mac], nexthop,
-                        packet, tar_route[3])
+                    has_same_arp = True
+                request_pkt = self.mycache.AddPacket(src_mac,
+                                                     self.mac_ip[src_mac],
+                                                     nexthop, packet,
+                                                     tar_route[3])
                 if has_same_arp:
                     log_info("already has the same arp request")
                     return
@@ -157,10 +159,10 @@ class Router(object):
         return
 
     def arp_repeat(self):
-        arp_packets=self.mycache.GapArpQuery()
+        arp_packets = self.mycache.GapArpQuery()
         for pkt in arp_packets:
             print(pkt)
-            self.net.send_packet(pkt[1],pkt[0])
+            self.net.send_packet(pkt[1], pkt[0])
 
     def process_arp_reply(self, port, packet):
         log_info('Got a ARP Reply')
@@ -171,10 +173,10 @@ class Router(object):
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
         if src_ip in self.mycache.cache_packet:
-            cache_pkts=self.mycache.GetArpReply(src_ip)
-            port=cache_pkts[0][4]
+            cache_pkts = self.mycache.GetArpReply(src_ip)
+            port = cache_pkts[0][4]
             for i in range(1, len(cache_pkts)):
-                self.IP_forward(cache_pkts[i],port,src_mac)
+                self.IP_forward(cache_pkts[i], port, src_mac)
             self.mycache.cache_packet.pop(src_ip)
         return
 
@@ -187,7 +189,8 @@ class Router(object):
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
         if dst_ip in self.ip_mac:
-            arppacket = create_ip_arp_request(self.ip_mac[dst_ip],dst_ip,src_ip)
+            arppacket = create_ip_arp_request(self.ip_mac[dst_ip], dst_ip,
+                                              src_ip)
             log_info(arppacket)
             self.net.send_packet(port, arppacket)
 
