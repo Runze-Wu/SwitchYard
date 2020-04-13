@@ -11,5 +11,7 @@ build
 dist
 # venv
 wrz/
+# pycharm
+.idea/
 # vscode
 .vscode/

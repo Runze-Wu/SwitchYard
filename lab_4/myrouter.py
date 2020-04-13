@@ -164,12 +164,7 @@ class Router(object):
             print(pkt)
             self.net.send_packet(pkt[1], pkt[0])
 
-    def process_arp_reply(self, port, packet):
-        log_info('Got a ARP Reply')
-        arp = packet[Arp]
-        src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
-                                         arp.operation))
+    def add_arp_table(self,src_ip,src_mac):
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
         if src_ip in self.mycache.cache_packet:
@@ -178,6 +173,14 @@ class Router(object):
             for i in range(1, len(cache_pkts)):
                 self.IP_forward(cache_pkts[i], port, src_mac)
             self.mycache.cache_packet.pop(src_ip)
+
+    def process_arp_reply(self, port, packet):
+        log_info('Got a ARP Reply')
+        arp = packet[Arp]
+        src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
+        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
+                                         arp.operation))
+        self.add_arp_table(src_ip,src_mac)
         return
 
     def process_arp_request(self, port, packet):
@@ -186,8 +189,7 @@ class Router(object):
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
         log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
                                          arp.operation))
-        self.arp_table[src_ip] = (src_mac, time.time())
-        log_info("update {}".format(self.arp_table))
+        self.add_arp_table(src_ip, src_mac)
         if dst_ip in self.ip_mac:
             arppacket=create_ip_arp_reply(self.ip_mac[dst_ip],src_mac,dst_ip,src_ip)
             log_info(arppacket)
