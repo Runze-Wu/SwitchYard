@@ -15,12 +15,12 @@ class PktCache:
     def __init__(self):
         self.cache_packet = dict()
 
-    def AddPacket(self, src_mac, src_ip, dst_ip, packet, port):
+    def AddPacket(self, src_mac, src_ip, dst_ip, packet, port, IsIcmp=False):
         if dst_ip not in self.cache_packet:
             self.cache_packet[dst_ip] = list()
             self.cache_packet[dst_ip].append(
                 [time.time(), 1, src_ip, src_mac, port])
-        self.cache_packet[dst_ip].append(packet)
+        self.cache_packet[dst_ip].append((packet, IsIcmp))
         return (create_ip_arp_request(src_mac, src_ip, dst_ip), port)
 
     def GetArpReply(self, get_ip):
@@ -28,11 +28,22 @@ class PktCache:
             return self.cache_packet[get_ip]
         return list()
 
+    def GetArpIcmp(self, packet):
+        icmp = ICMP()
+        icmp.icmpcode, icmp.icmptype = ICMPCodeDestinationUnreachable.NetworkUnreachable, ICMPType.DestinationUnreachable
+        icmp.icmpdata.data = packet.to_bytes()[:28]
+        ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
+        ethr = Ethernet()
+        print(str(icmp))
+        arp_error_pkt = ethr + ip + icmp
+        return arp_error_pkt
+
     def GapArpQuery(self):
         now = time.time()
         cache_packet_list = list(self.cache_packet.items())
         cache_packet_list.sort(key=lambda x: x[1][0][0])
         arp_packets = list()
+        icmp_packets = list()
         for item in cache_packet_list:
             if item[1][0][
                     1] <= 4 and now - item[1][0][0] - item[1][0][1] >= 0.0:
@@ -42,8 +53,10 @@ class PktCache:
                     (create_ip_arp_request(src_mac, src_ip, nexthop), port))
                 self.cache_packet[item[0]][0][1] += 1
             elif item[1][0][1] >= 5 or now - item[1][0][0] > 4.0:
+                for num in range(1, len(item[1])):
+                    icmp_packets.append(self.GetArpIcmp(item[1][num][0]))
                 self.cache_packet.pop(item[0])
-        return arp_packets
+        return arp_packets, icmp_packets
 
     pass
 
@@ -57,6 +70,10 @@ class Router(object):
         self.router_table = list()
         self.port_mac = {
             intf.name: intf.ethaddr
+            for intf in self.net.interfaces()
+        }
+        self.port_ip = {
+            intf.name: intf.ipaddr
             for intf in self.net.interfaces()
         }
         self.mac_ip = {
@@ -101,29 +118,29 @@ class Router(object):
         elif packet[Ethernet].ethertype == EtherType.IPv4:
             if packet[IPv4].dst in self.ip_mac:
                 if packet[IPv4].protocol == IPProtocol.ICMP:
-                    if packet[ICMP].icmptype==ICMPType.EchoRequest:
-                        self.Icmp_reply(packet,packet[IPv4].dst)
+                    if packet[ICMP].icmptype == ICMPType.EchoRequest:
+                        self.Icmp_reply(packet)
                 else:
                     log_info("Packet intended for me")
             else:
-                self.process_IP_Packet(packet)
+                self.process_IP_Packet(port, packet)
         else:
             log_info("other type packet")
         return
 
-    def Icmp_reply(self,packet,src_ip):
-        index=packet.get_header_index(Ethernet)
-        ethr=packet[Ethernet]
+    def Icmp_reply(self,packet):
+        index = packet.get_header_index(Ethernet)
         del packet[index]
-        icmp=ICMP()
-        icmp.icmptype=ICMPType.EchoReply
-        icmp.icmpdata.data=packet.to_bytes()[:28]
+        icmp = ICMP()
+        icmp.icmptype = ICMPType.EchoReply
+        icmp.icmpdata.data = packet.to_bytes()[:28]
         print(str(icmp))
         icmp.icmpdata.sequence = packet[icmp].icmpdata.sequence
-        icmp.icmpdata.identifier= packet[icmp].icmpdata.identifier
-        ip=IPv4(protocol=IPProtocol.ICMP,ttl=10,src=src_ip,dst=packet[IPv4].src)
-        reply_pkt=ethr+ip+icmp
-        self.process_IP_Packet(reply_pkt)
+        icmp.icmpdata.identifier = packet[icmp].icmpdata.identifier
+        ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
+        ethr = Ethernet()
+        reply_pkt = ethr + ip + icmp
+        self.process_IP_Packet(reply_pkt, True)
         pass
 
     def match_subnet(self, dst_ip):
@@ -135,12 +152,14 @@ class Router(object):
                     tar_route, maxlen = item, subnet.prefixlen
         return tar_route
 
-    def IP_forward(self, packet, port, dst_mac):
+    def IP_forward(self, packet, port, dst_mac, IsIcmp=False):
         packet[Ethernet].dst, packet[IPv4].ttl = dst_mac, packet[IPv4].ttl - 1
+        if IsIcmp:
+            packet[IPv4].src = self.port_ip[port]
         log_info(packet)
         self.net.send_packet(port, packet)
 
-    def process_IP_Packet(self, packet):
+    def process_IP_Packet(self,packet, IsIcmp=False):
         print("catch an IP packet {}".format(packet))
         ip_pkt = packet[IPv4]
         src_mac, src_ip, dst_ip, ttl, pro = packet[
@@ -150,6 +169,16 @@ class Router(object):
         tar_route = self.match_subnet(dst_ip)
         if tar_route is None:
             log_info("can't match to any subnet")
+            index = packet.get_header_index(Ethernet)
+            del packet[index]
+            icmp = ICMP()
+            icmp.icmpcode, icmp.icmptype = ICMPCodeDestinationUnreachable.NetworkUnreachable, ICMPType.DestinationUnreachable
+            icmp.icmpdata.data = packet.to_bytes()[:28]
+            ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
+            ethr = Ethernet()
+            print(str(icmp))
+            time_pkt = ethr + ip + icmp
+            self.process_IP_Packet(time_pkt, True)
         else:
             src_mac = self.port_mac[tar_route[3]]
             packet[Ethernet].src = src_mac
@@ -159,7 +188,7 @@ class Router(object):
             nexthop = IPv4Address(nexthop)
             if nexthop in self.arp_table:
                 self.IP_forward(packet, tar_route[3],
-                                self.arp_table[nexthop][0])
+                                self.arp_table[nexthop][0], IsIcmp)
             else:
                 has_same_arp = False
                 if tar_route[2] != '#' and self.match_subnet(nexthop) is None:
@@ -169,7 +198,7 @@ class Router(object):
                 request_pkt = self.mycache.AddPacket(src_mac,
                                                      self.mac_ip[src_mac],
                                                      nexthop, packet,
-                                                     tar_route[3])
+                                                     tar_route[3], IsIcmp)
                 if has_same_arp:
                     log_info("already has the same arp request")
                     return
@@ -178,39 +207,43 @@ class Router(object):
         return
 
     def arp_repeat(self):
-        arp_packets = self.mycache.GapArpQuery()
+        arp_packets, icmp_packets = self.mycache.GapArpQuery()
         for pkt in arp_packets:
             print(pkt)
             self.net.send_packet(pkt[1], pkt[0])
+        for pkt in icmp_packets:
+            pass
 
-    def add_arp_table(self,src_ip,src_mac):
+    def add_arp_table(self, src_ip, src_mac):
         self.arp_table[src_ip] = (src_mac, time.time())
         log_info("update {}".format(self.arp_table))
         if src_ip in self.mycache.cache_packet:
             cache_pkts = self.mycache.GetArpReply(src_ip)
             port = cache_pkts[0][4]
             for i in range(1, len(cache_pkts)):
-                self.IP_forward(cache_pkts[i], port, src_mac)
+                self.IP_forward(cache_pkts[i][0], port, src_mac,
+                                cache_pkts[i][1])
             self.mycache.cache_packet.pop(src_ip)
 
     def process_arp_reply(self, port, packet):
         log_info('Got a ARP Reply')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
-                                         arp.operation))
-        self.add_arp_table(src_ip,src_mac)
+        log_info("{} {} {} {} {} {}".format(port, src_mac, src_ip, dst_mac,
+                                            dst_ip, arp.operation))
+        self.add_arp_table(src_ip, src_mac)
         return
 
     def process_arp_request(self, port, packet):
         log_info('Got a ARP Request')
         arp = packet[Arp]
         src_mac, src_ip, dst_mac, dst_ip = arp.senderhwaddr, arp.senderprotoaddr, arp.targethwaddr, arp.targetprotoaddr
-        log_info("{} {} {} {} {} {}".format(port,src_mac, src_ip, dst_mac, dst_ip,
-                                         arp.operation))
+        log_info("{} {} {} {} {} {}".format(port, src_mac, src_ip, dst_mac,
+                                            dst_ip, arp.operation))
         self.add_arp_table(src_ip, src_mac)
         if dst_ip in self.ip_mac:
-            arppacket=create_ip_arp_reply(self.ip_mac[dst_ip],src_mac,dst_ip,src_ip)
+            arppacket = create_ip_arp_reply(self.ip_mac[dst_ip], src_mac,
+                                            dst_ip, src_ip)
             log_info(arppacket)
             self.net.send_packet(port, arppacket)
 
