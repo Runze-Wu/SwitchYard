@@ -100,12 +100,31 @@ class Router(object):
                 self.process_arp_reply(port, packet)
         elif packet[Ethernet].ethertype == EtherType.IPv4:
             if packet[IPv4].dst in self.ip_mac:
-                log_info("Packet intended for me")
+                if packet[IPv4].protocol == IPProtocol.ICMP:
+                    if packet[ICMP].icmptype==ICMPType.EchoRequest:
+                        self.Icmp_reply(packet,packet[IPv4].dst)
+                else:
+                    log_info("Packet intended for me")
             else:
                 self.process_IP_Packet(packet)
         else:
             log_info("other type packet")
         return
+
+    def Icmp_reply(self,packet,src_ip):
+        index=packet.get_header_index(Ethernet)
+        ethr=packet[Ethernet]
+        del packet[index]
+        icmp=ICMP()
+        icmp.icmptype=ICMPType.EchoReply
+        icmp.icmpdata.data=packet.to_bytes()[:28]
+        print(str(icmp))
+        icmp.icmpdata.sequence = packet[icmp].icmpdata.sequence
+        icmp.icmpdata.identifier= packet[icmp].icmpdata.identifier
+        ip=IPv4(protocol=IPProtocol.ICMP,ttl=10,src=src_ip,dst=packet[IPv4].src)
+        reply_pkt=ethr+ip+icmp
+        self.process_IP_Packet(reply_pkt)
+        pass
 
     def match_subnet(self, dst_ip):
         maxlen, tar_route = 0, None
