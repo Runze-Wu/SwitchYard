@@ -205,9 +205,6 @@ class Router(object):
 
     def process_IP_Packet(self, packet, IsIcmp=False,IsErrorIcmp=False, port=None):
         log_info("catch an IP packet {}".format(packet))
-        if packet[IPv4].ttl <= 1:
-            self.ttl_ended(packet,port)
-            return
         dst_ip = packet[IPv4].dst
         tar_route = self.match_subnet(dst_ip)
         if tar_route is None:
@@ -218,6 +215,9 @@ class Router(object):
                 self.route_no_match(packet,port)
             return
         else:
+            if packet[IPv4].ttl <= 1:
+                self.ttl_ended(packet,port)
+                return
             log_info("the forwarding entry is {}".format(tar_route))
             src_mac = self.port_mac[tar_route[3]]
             packet[Ethernet].src = src_mac
