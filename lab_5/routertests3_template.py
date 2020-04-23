@@ -145,6 +145,7 @@ def icmp_tests():
 
     nottinyttl = '''lambda pkt: pkt.get_header(IPv4).ttl >= 8'''
     icmp_reply_data='''lambda pkt: pkt.get_header(ICMP).icmpdata.data==b'hello icmp request' '''
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]==b'E' '''
     # Your tests here
     # case0  172.16.128.1 ping 10.10.0.1 (eh1 interface)
     icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
@@ -170,7 +171,23 @@ def icmp_tests():
                          )
     s.expect(PacketOutputEvent('router-eth1', icmp_reply, exact=False,predicates=(nottinyttl,icmp_reply_data),display=ICMP),
              "router eth1 send the icmp reply to 10.10.0.254")
-    
+
+    #case1 ping router but the
+    icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
+                           '172.16.128.1', '172.16.42.1', True, 10,
+                           '123')
+    s.expect(
+        PacketInputEvent('router-eth0', icmp_request, display=ICMP),
+        "send a ping reply to 172.16.42.1(interface eth2) arrive on router-eth0"
+    )
+
+    icmp_error = mk_icmperr('10:00:00:00:00:02', '20:00:00:00:00:00',
+                            '10.10.0.1', '172.16.128.1',
+                            ICMPType.DestinationUnreachable,
+                            ICMPCodeDestinationUnreachable.PortUnreachable,icmp_request)
+    # print
+    s.expect(PacketOutputEvent('router-eth1', icmp_error, exact=False,predicates=(nottinyttl,icmp_error_data),display=ICMP),
+             "router eth1 send the icmp error packet to 10.10.0.254")
     return s
 
 

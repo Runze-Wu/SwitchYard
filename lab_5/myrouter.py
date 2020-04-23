@@ -132,8 +132,8 @@ class Router(object):
                 if packet[IPv4].protocol == IPProtocol.ICMP:
                     if packet[ICMP].icmptype == ICMPType.EchoRequest:
                         self.Icmp_reply(packet, True, port)
-                else:
-                    self.Icmp_reply(packet, False, port)
+                        return
+                self.Icmp_reply(packet, False, port)
             else:
                 self.process_IP_Packet(packet,False, False, port)
         else:
