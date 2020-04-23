@@ -15,12 +15,19 @@ class PktCache:
     def __init__(self):
         self.cache_packet = dict()
 
-    def AddPacket(self, src_mac, src_ip, dst_ip, packet, port, IsIcmp=False):
+    def AddPacket(self,
+                  src_mac,
+                  src_ip,
+                  dst_ip,
+                  packet,
+                  port,
+                  IsErrorIcmp=False,
+                  come_port=None):
         if dst_ip not in self.cache_packet:
             self.cache_packet[dst_ip] = list()
             self.cache_packet[dst_ip].append(
                 [time.time(), 1, src_ip, src_mac, port])
-        self.cache_packet[dst_ip].append((packet, IsIcmp))
+        self.cache_packet[dst_ip].append((packet, IsErrorIcmp, come_port))
         return (create_ip_arp_request(src_mac, src_ip, dst_ip), port)
 
     def GetArpReply(self, get_ip):
@@ -58,7 +65,8 @@ class PktCache:
                 self.cache_packet[item[0]][0][1] += 1
             elif item[1][0][1] >= 5 or now - item[1][0][0] > 4.0:
                 for num in range(1, len(item[1])):
-                    icmp_packets.append(self.GetArpIcmp(item[1][num][0]))
+                    come_port=item[1][num][-1]
+                    icmp_packets.append((self.GetArpIcmp(item[1][num][0]),come_port))
                 self.cache_packet.pop(item[0])
         return arp_packets, icmp_packets
 
@@ -123,16 +131,16 @@ class Router(object):
                 log_info("Packet intended for me")
                 if packet[IPv4].protocol == IPProtocol.ICMP:
                     if packet[ICMP].icmptype == ICMPType.EchoRequest:
-                        self.Icmp_reply(packet)
+                        self.Icmp_reply(packet, True, port)
                 else:
-                    self.Icmp_reply(packet, False)
+                    self.Icmp_reply(packet, False, port)
             else:
-                self.process_IP_Packet(packet)
+                self.process_IP_Packet(packet,False, False, port)
         else:
             log_info("other type packet")
         return
 
-    def Icmp_reply(self, packet, legal=True):
+    def Icmp_reply(self, packet, legal=True, port=None):
         index = packet.get_header_index(Ethernet)
         del packet[index]
         icmp = ICMP()
@@ -150,10 +158,8 @@ class Router(object):
             icmp.icmpcode = ICMPCodeDestinationUnreachable.PortUnreachable
             icmp.icmpdata.data = packet.to_bytes()[:28]
         log_info("the data is {}".format(icmp.icmpdata.data))
-        # log_info(str(icmp))
         reply_pkt = Ethernet() + ip + icmp
-        self.process_IP_Packet(reply_pkt, True, legal == False)
-        pass
+        self.process_IP_Packet(reply_pkt, True,legal == False, port)
 
     def match_subnet(self, dst_ip):
         maxlen, tar_route = 0, None
@@ -172,34 +178,45 @@ class Router(object):
         log_info("{} send IP packet {}".format(port, packet))
         self.net.send_packet(port, packet)
 
-    def process_IP_Packet(self, packet, IsIcmp=False, IsErrorIcmp=False):
+    def ttl_ended(self, packet, port=None):
+        log_info("ttl is limited")
+        index = packet.get_header_index(Ethernet)
+        del packet[index]
+        icmp = ICMP()
+        icmp.icmptype = ICMPType.TimeExceeded
+        icmp.icmpcode = ICMPCodeTimeExceeded.TTLExpired
+        icmp.icmpdata.data = packet.to_bytes()[:28]
+        ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
+        ttl_pkt = Ethernet() + ip + icmp
+        self.process_IP_Packet(ttl_pkt, True,True, port)
+
+    def route_no_match(self, packet, port=None):
+        log_info("can't match to any subnet")
+        index = packet.get_header_index(Ethernet)
+        del packet[index]
+        icmp = ICMP()
+        icmp.icmptype = ICMPType.DestinationUnreachable
+        icmp.icmpcode = ICMPCodeDestinationUnreachable.NetworkUnreachable,
+        icmp.icmpdata.data = packet.to_bytes()[:28]
+        ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
+        ethr = Ethernet()
+        time_pkt = ethr + ip + icmp
+        self.process_IP_Packet(time_pkt, True,True, port)
+
+    def process_IP_Packet(self, packet, IsIcmp=False,IsErrorIcmp=False, port=None):
         log_info("catch an IP packet {}".format(packet))
         if packet[IPv4].ttl <= 1:
-            log_info("ttl is limited")
-            index = packet.get_header_index(Ethernet)
-            del packet[index]
-            icmp = ICMP()
-            icmp.icmptype = ICMPType.TimeExceeded
-            icmp.icmpcode = ICMPCodeTimeExceeded.TTLExpired
-            icmp.icmpdata.data = packet.to_bytes()[:28]
-            ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
-            ttl_pkt = Ethernet() + ip + icmp
-            self.process_IP_Packet(ttl_pkt, True, True)
+            self.ttl_ended(packet,port)
             return
         dst_ip = packet[IPv4].dst
         tar_route = self.match_subnet(dst_ip)
         if tar_route is None:
-            log_info("can't match to any subnet")
-            index = packet.get_header_index(Ethernet)
-            del packet[index]
-            icmp = ICMP()
-            icmp.icmptype = ICMPType.DestinationUnreachable
-            icmp.icmpcode = ICMPCodeDestinationUnreachable.NetworkUnreachable,
-            icmp.icmpdata.data = packet.to_bytes()[:28]
-            ip = IPv4(protocol=IPProtocol.ICMP, ttl=10, dst=packet[IPv4].src)
-            ethr = Ethernet()
-            time_pkt = ethr + ip + icmp
-            self.process_IP_Packet(time_pkt, True, True)
+            if IsIcmp:
+                log_info("can't find the router send ICMP,send it to the come port")
+                self.IP_forward(packet,port,'ff:ff:ff:ff:ff:ff',True)
+            else:
+                self.route_no_match(packet,port)
+            return
         else:
             log_info("the forwarding entry is {}".format(tar_route))
             src_mac = self.port_mac[tar_route[3]]
@@ -220,7 +237,7 @@ class Router(object):
                 request_pkt = self.mycache.AddPacket(src_mac,
                                                      self.mac_ip[src_mac],
                                                      nexthop, packet,
-                                                     tar_route[3], IsErrorIcmp)
+                                                     tar_route[3], IsErrorIcmp,port)
                 if has_same_arp:
                     log_info("already has the same arp request")
                     return
@@ -234,8 +251,7 @@ class Router(object):
         for pkt in arp_packets:
             self.net.send_packet(pkt[1], pkt[0])
         for pkt in icmp_packets:
-            self.process_IP_Packet(pkt, True, True)
-            pass
+            self.process_IP_Packet(pkt[0], True,True,pkt[1])
 
     def add_arp_table(self, src_ip, src_mac):
         self.arp_table[src_ip] = (src_mac, time.time())
