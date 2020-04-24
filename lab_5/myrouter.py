@@ -249,6 +249,7 @@ class Router(object):
     def arp_repeat(self):
         arp_packets, icmp_packets = self.mycache.GapArpQuery()
         for pkt in arp_packets:
+            log_info(str(pkt[0]))
             self.net.send_packet(pkt[1], pkt[0])
         for pkt in icmp_packets:
             self.process_IP_Packet(pkt[0], True,True,pkt[1])

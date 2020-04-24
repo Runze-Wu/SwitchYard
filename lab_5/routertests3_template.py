@@ -144,8 +144,8 @@ def icmp_tests():
 ''')
 
     nottinyttl = '''lambda pkt: pkt.get_header(IPv4).ttl >= 8'''
-    icmp_reply_data='''lambda pkt: pkt.get_header(ICMP).icmpdata.data==b'hello icmp request' '''
-    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]==b'E' '''
+    icmp_reply_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data==b'hello icmp request' '''
+
     # Your tests here
     # case0  172.16.128.1 ping 10.10.0.1 (eh1 interface)
     icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
@@ -163,19 +163,24 @@ def icmp_tests():
         PacketInputEvent('router-eth1', arp_reply, display=Arp),
         "Router receive an ARP response for 10.10.0.254 on router-eth1 and prepare send ping reply to 10.10.1.254"
     )
-    icmp_reply = mk_ping('10:00:00:00:00:02',
-                         '20:00:00:00:00:00',
-                         '172.16.42.1',
-                         '172.16.128.1',
-                         reply=True,
-                         )
-    s.expect(PacketOutputEvent('router-eth1', icmp_reply, exact=False,predicates=(nottinyttl,icmp_reply_data),display=ICMP),
-             "router eth1 send the icmp reply to 10.10.0.254")
+    icmp_reply = mk_ping(
+        '10:00:00:00:00:02',
+        '20:00:00:00:00:00',
+        '172.16.42.1',
+        '172.16.128.1',
+        reply=True,
+    )
+    s.expect(
+        PacketOutputEvent('router-eth1',
+                          icmp_reply,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_reply_data),
+                          display=ICMP),
+        "router eth1 send the icmp reply to 10.10.0.254")
 
-    #case1 ping router but the
+    #case1 ping router but the packet is not ICMP request
     icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
-                           '172.16.128.1', '172.16.42.1', True, 10,
-                           '123')
+                           '172.16.128.1', '172.16.42.1', True, 10, '123')
     s.expect(
         PacketInputEvent('router-eth0', icmp_request, display=ICMP),
         "send a ping reply to 172.16.42.1(interface eth2) arrive on router-eth0"
@@ -184,10 +189,155 @@ def icmp_tests():
     icmp_error = mk_icmperr('10:00:00:00:00:02', '20:00:00:00:00:00',
                             '10.10.0.1', '172.16.128.1',
                             ICMPType.DestinationUnreachable,
-                            ICMPCodeDestinationUnreachable.PortUnreachable,icmp_request)
+                            ICMPCodeDestinationUnreachable.PortUnreachable,
+                            icmp_request)
     # print
-    s.expect(PacketOutputEvent('router-eth1', icmp_error, exact=False,predicates=(nottinyttl,icmp_error_data),display=ICMP),
-             "router eth1 send the icmp error packet to 10.10.0.254")
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(icmp_request, 8))
+    s.expect(
+        PacketOutputEvent('router-eth1',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        "router eth1 send the icmp error packet to 10.10.0.254")
+
+    # case2 a packet come ttl is 1
+    icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
+                           '172.16.128.1', '192.168.1.2', True, 1, '123')
+    s.expect(
+        PacketInputEvent('router-eth0', icmp_request, display=ICMP),
+        "send a ping reply to 192.168.1.1(interface eth0) arrive on router-eth0"
+    )
+    icmp_error = mk_icmperr('10:00:00:00:00:02', '20:00:00:00:00:00',
+                            '10.10.0.1', '172.16.128.1', ICMPType.TimeExceeded,
+                            ICMPCodeTimeExceeded.TTLExpired, icmp_request)
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(icmp_request, 8))
+    s.expect(
+        PacketOutputEvent('router-eth1',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        "router eth1 send the icmp error packet to 10.10.0.254")
+
+    # case3 a packet come ttl is 1 and can't match any entry
+    icmp_request = mk_ping('ff:ff:ff:ff:ff:ff', '10:00:00:00:00:01',
+                           '172.16.128.1', '3.3.3.3', True, 1, '123')
+    s.expect(
+        PacketInputEvent('router-eth0', icmp_request, display=ICMP),
+        "send a ping reply to 3.3.3.3(an error dest) arrive on router-eth0")
+    icmp_error = mk_icmperr('10:00:00:00:00:02', '20:00:00:00:00:00',
+                            '10.10.0.1', '172.16.128.1',
+                            ICMPType.DestinationUnreachable,
+                            ICMPCodeDestinationUnreachable.NetworkUnreachable,
+                            icmp_request)
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(icmp_request, 8))
+    s.expect(
+        PacketOutputEvent('router-eth1',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        "router eth1 send the icmp error packet to 10.10.0.254")
+
+    # case4 three packet for the same dest
+    req_ping_1 = mk_ping(
+        '33:00:00:00:00:00',
+        '10:00:00:00:00:03',
+        '172.16.42.2',
+        '172.16.64.1',
+    )
+    req_ping_2 = mk_ping(
+        '11:00:00:00:00:00',
+        '10:00:00:00:00:02',
+        '10.10.1.254',
+        '172.16.64.1',
+    )
+    req_ping_3 = mk_ping(
+        '33:00:00:00:00:00',
+        '10:00:00:00:00:03',
+        '172.16.42.2',
+        '172.16.64.1',
+    )
+    s.expect(PacketInputEvent("router-eth2", req_ping_1, display=ICMP),
+             '172.16.42.2 ping for 172.16.64.1 arrive on router-eth2')
+    req_arp_1 = mk_arpreq('10:00:00:00:00:02', '10.10.0.1', '10.10.1.254')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "look up nexthop:10.10.1.254's mac")
+    s.expect(PacketInputEvent("router-eth1", req_ping_2, display=ICMP),
+             '10.10.1.254 ping for 172.16.64.1 arrive on router-eth1')
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.1.254's mac")
+    s.expect(PacketInputEvent("router-eth2", req_ping_3, display=ICMP),
+             '172.16.42.2 ping for 172.16.64.1 arrive on router-eth2')
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.1.254's mac")
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.1.254's mac")
+    s.expect(PacketInputTimeoutEvent(2), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth1", req_arp_1, display=Arp),
+             "repeat send arp request for nexthop:10.10.1.254's mac")
+    s.expect(PacketInputTimeoutEvent(2), 'waiting for arp reply')
+    req_arp_4 = mk_arpreq('10:00:00:00:00:03', '172.16.42.1', '172.16.42.2')
+    req_arp_5 = mk_arpreq('10:00:00:00:00:02', '10.10.0.1', '10.10.1.254')
+    s.expect(PacketOutputEvent("router-eth2", req_arp_4, display=Arp),
+             "send arp request for 172.16.42.2's mac")
+    s.expect(PacketOutputEvent("router-eth1", req_arp_5, display=Arp),
+             "send arp request for 10.10.1.254's mac")
+    s.expect(PacketInputTimeoutEvent(1), 'waiting for arp reply')
+    s.expect(PacketOutputEvent("router-eth2", req_arp_4, display=Arp),
+             "send arp request for 172.16.42.2's mac")
+    s.expect(PacketOutputEvent("router-eth1", req_arp_5, display=Arp),
+             "send arp request for 10.10.1.254's mac")
+    rep_arp_4 = mk_arpresp(req_arp_4, '40:00:00:00:00:00')
+    rep_arp_5 = mk_arpresp(req_arp_5, '50:00:00:00:00:00')
+    s.expect(PacketInputEvent("router-eth2", rep_arp_4, display=Arp),
+             '172.16.42.2 arp reply arrive an router-eth2')
+    icmp_error = mk_icmperr('10:00:00:00:00:03', '40:00:00:00:00:00',
+                            '172.16.42.1', '172.16.42.2',
+                            ICMPType.DestinationUnreachable,
+                            ICMPCodeDestinationUnreachable.HostUnreachable,
+                            req_ping_1)
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(req_ping_1, 8))
+    s.expect(
+        PacketOutputEvent('router-eth2',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        'send HostUnreachable ICMP packet to 172.16.42.2')
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(req_ping_3, 8))
+    s.expect(
+        PacketOutputEvent('router-eth2',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        'send HostUnreachable ICMP packet to 172.16.42.2')
+    s.expect(PacketInputEvent("router-eth1", rep_arp_5, display=Arp),
+             '10.10.1.254 arp reply arrive an router-eth1')
+    icmp_error = mk_icmperr('10:00:00:00:00:02', '50:00:00:00:00:00',
+                            '10.10.0.1', '10.10.1.254',
+                            ICMPType.DestinationUnreachable,
+                            ICMPCodeDestinationUnreachable.HostUnreachable,
+                            req_ping_2)
+    icmp_error_data = '''lambda pkt: pkt.get_header(ICMP).icmpdata.data[:8]== {}'''.format(
+        get_raw_pkt(req_ping_2, 8))
+    s.expect(
+        PacketOutputEvent('router-eth1',
+                          icmp_error,
+                          exact=False,
+                          predicates=(nottinyttl, icmp_error_data),
+                          display=ICMP),
+        'send HostUnreachable ICMP packet to 10.10.1.254')
     return s
 
 
