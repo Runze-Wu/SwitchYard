@@ -89,6 +89,7 @@ def setup_addressing(net):
     set_route(net, 'client', '192.168.200.0/24', '10.1.1.2')
     set_route(net, 'client', '172.16.0.0/16', '10.1.1.2')
 
+    set_route(net,'server2','7.7.0.0/16','192.168.200.2')
     forwarding_table = open('forwarding_table.txt', 'w')    
     table = '''192.168.100.0 255.255.255.0 192.168.100.1 router-eth0
     192.168.200.0 255.255.255.0 192.168.200.1 router-eth1
