@@ -35,7 +35,19 @@ def switchy_main(net):
             Should I drop it?
             If not, modify headers & send to blastee
             '''
-            net.send_packet("middlebox-eth1", pkt)
+            drop_rate=float(0)
+            middlbox_params=open("middlebox_params", 'r')
+            line=middlbox_params.read().strip().split()
+            if len(line)==2:
+                drop_rate=float(line[1])
+            if randint(0,100)<drop_rate*100: #丢弃
+                pass
+            else: #进行发送
+                for intf in my_intf:
+                    if intf.name=="middlebox-eth1":    
+                        pkt[Ethernet].dst=intf.ethaddr
+                        break
+                net.send_packet("middlebox-eth1", pkt)
         elif dev == "middlebox-eth1":
             log_debug("Received from blastee")
             '''
@@ -43,6 +55,11 @@ def switchy_main(net):
             Modify headers & send to blaster. Not dropping ACK packets!
             net.send_packet("middlebox-eth0", pkt)
             '''
+            for intf in my_intf:
+                if intf.name=="middlebox-eth0":    
+                    pkt[Ethernet].dst=intf.ethaddr
+                    break
+            net.send_packet("middlebox-eth0", pkt)
         else:
             log_debug("Oops :))")
 
