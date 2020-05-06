@@ -12,7 +12,7 @@ def switchy_main(net):
     my_intf = net.interfaces()
     mymacs = [intf.ethaddr for intf in my_intf]
     myips = [intf.ipaddr for intf in my_intf]
-
+    ip_mac={"192.168.100.1":"10:00:00:00:00:01","192.168.200.1":"20:00:00:00:00:01"}
     while True:
         gotpkt = True
         try:
@@ -45,8 +45,9 @@ def switchy_main(net):
             else: #进行发送
                 for intf in my_intf:
                     if intf.name=="middlebox-eth1":    
-                        pkt[Ethernet].dst=intf.ethaddr
+                        pkt[Ethernet].src=intf.ethaddr
                         break
+                pkt[Ethernet].dst=ip_mac[pkt[IPv4].dst]
                 net.send_packet("middlebox-eth1", pkt)
         elif dev == "middlebox-eth1":
             log_debug("Received from blastee")
@@ -57,8 +58,9 @@ def switchy_main(net):
             '''
             for intf in my_intf:
                 if intf.name=="middlebox-eth0":    
-                    pkt[Ethernet].dst=intf.ethaddr
+                    pkt[Ethernet].src=intf.ethaddr
                     break
+            pkt[Ethernet].dst=ip_mac[pkt[IPv4].dst]
             net.send_packet("middlebox-eth0", pkt)
         else:
             log_debug("Oops :))")
