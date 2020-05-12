@@ -45,7 +45,7 @@ def switchy_main(net):
             blastee_params.close()
             eth_header = Ethernet(src=port_mac["blastee-eth0"],
                                   dst=port_mac["middlebox-eth0"],
-                                  EtherType=EtherType.IP)
+                                  EtherType=EtherType.IPv4)
             ip_header = IPv4(src="192.168.200.1",
                              dst=blaster_ip,
                              protocol=IPProtocol.UDP)

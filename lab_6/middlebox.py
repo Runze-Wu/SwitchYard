@@ -54,8 +54,9 @@ def switchy_main(net):
             if randint(0, 100) < drop_rate * 100:  #丢弃
                 pass
             else:  #进行发送
+                print(2)
                 pkt[Ethernet].src = port_mac[dev]
-                pkt[Ethernet].dst = ip_mac[pkt[IPv4].dst]
+                pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
                 net.send_packet("middlebox-eth1", pkt)
         elif dev == "middlebox-eth1":
             log_debug("Received from blastee")
@@ -64,9 +65,16 @@ def switchy_main(net):
             Modify headers & send to blaster. Not dropping ACK packets!
             net.send_packet("middlebox-eth0", pkt)
             '''
+            print(pkt)
+            print(1)
             pkt[Ethernet].src = port_mac[dev]
-            pkt[Ethernet].dst = ip_mac[pkt[IPv4].dst]
+            print(pkt[Ethernet].dst)
+            print(ip_mac[str(pkt[IPv4].dst)])
+            pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
+            print(1)
+            print(pkt)
             net.send_packet("middlebox-eth0", pkt)
+            print(1)
         else:
             log_debug("Oops :))")
 
