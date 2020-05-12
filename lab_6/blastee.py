@@ -25,6 +25,8 @@ def switchy_main(net):
         if gotpkt:
             log_debug("I got a packet from {}".format(dev))
             log_debug("Pkt: {}".format(pkt))
-
-
+            blastee_params= open("blastee_params.txt", 'r')
+            line =blastee_params.read().strip().split()
+            if len(line) == 4:
+                blaster_ip,num = line[1],line[3]
     net.shutdown()

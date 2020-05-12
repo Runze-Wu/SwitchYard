@@ -42,7 +42,7 @@ def switchy_main(net):
             If not, modify headers & send to blastee
             '''
             drop_rate = float(0)
-            middlbox_params = open("middlebox_params", 'r')
+            middlbox_params = open("middlebox_params.txt", 'r')
             line = middlbox_params.read().strip().split()
             if len(line) == 2:
                 drop_rate = float(line[1])
