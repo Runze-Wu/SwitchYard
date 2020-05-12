@@ -43,7 +43,9 @@ def switchy_main(net):
         blastee_ip, num, length = line[1], line[3], line[5]
         sender_window, timeout, recv_timeout = line[7], line[9], line[11]
     blaster_params.close()
-
+    send_list = set()  #waiting for ack
+    pkt_fifo = range(1, num + 1)
+    pkt_send_count=[0]*(num+1)
     while True:
         gotpkt = True
         try:
@@ -58,15 +60,32 @@ def switchy_main(net):
 
         if gotpkt:
             log_debug("I got a packet")
+            ack_seq = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
+            if ack_seq in send_list:
+                send_list.remove(ack_seq)
+            LHS += (ack_seq == LHS)
         else:
             log_debug("Didn't receive anything")
             '''
-            Creating the headers for the packet
+            judge if time delay occur
             '''
-            pkt = Ethernet() + IPv4() + UDP()
-            pkt[1].protocol = IPProtocol.UDP
-            '''
-            Do other things here and send packet
-            '''
-
+            if time.time() - timer >= timeout:
+                pkt_fifo = list(set(pkt_fifo.extend(send_list))).sort()
+                timer = time.time()
+        if len(send_list) == 0 and len(pkt_fifo) == 0:
+            '''already done'''
+            log_info("total time is {}".format(time.time()-begin_time))
+            log_info("send packet num is {}".format(sum(pkt_send_count)))
+            re_sent=once_sent=0
+            for item in pkt_send_count:
+                if item==1:once_sent+=1
+                else: re_sent+=item
+            log_info("resent num : {} only once num : {}".format(re_sent,once_sent))
+        if RHS - LHS + 1 > sender_window: pass
+        else:
+            pkt = create_seq_packet(pkt_fifo[0])
+            send_list.add(pkt_fifo[0])
+            pkt_send_count[pkt_fifo[0]]+=1
+            pkt_fifo.pop(0)
+            net.send_packet("middlebox-eth1", pkt)
     net.shutdown()
