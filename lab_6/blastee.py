@@ -5,7 +5,7 @@ from switchyard.lib.packet import *
 from switchyard.lib.userlib import *
 from threading import *
 import time
-
+from struct import *
 
 def switchy_main(net):
     my_interfaces = net.interfaces()
@@ -35,7 +35,9 @@ def switchy_main(net):
         if gotpkt:
             log_debug("I got a packet from {}".format(dev))
             log_debug("Pkt: {}".format(pkt))
-            if pkt[IPv4].dst != "192.168.200.1":
+            if pkt[Ethernet].ethertype!=EtherType.IPv4:
+                continue
+            if str(pkt[IPv4].dst) != "192.168.200.1":
                 log_info("the dst ipaddr isn't blastee")
                 return
             blastee_params = open("blastee_params.txt", 'r')
@@ -45,14 +47,15 @@ def switchy_main(net):
             blastee_params.close()
             eth_header = Ethernet(src=port_mac["blastee-eth0"],
                                   dst=port_mac["middlebox-eth0"],
-                                  EtherType=EtherType.IPv4)
+                                  ethertype=EtherType.IPv4)
             ip_header = IPv4(src="192.168.200.1",
                              dst=blaster_ip,
                              protocol=IPProtocol.UDP)
             udp_header = UDP(src=7777, dst=6666)
             seq_num = RawPacketContents(pkt[RawPacketContents].to_bytes()[:4])
+            print("ack pkt: "+str(unpack(">i",seq_num.to_bytes())[0]))
             add_payload = RawPacketContents(
                 pkt[RawPacketContents].to_bytes()[4:12])
             ack_packet = eth_header + ip_header + udp_header + seq_num + add_payload
-            net.send_packet("blaster-eth0", ack_packet)
+            net.send_packet("blastee-eth0", ack_packet)
     net.shutdown()

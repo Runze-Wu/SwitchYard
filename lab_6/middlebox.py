@@ -6,7 +6,7 @@ from switchyard.lib.userlib import *
 from threading import *
 from random import randint
 import time
-
+from struct import *
 
 def switchy_main(net):
 
@@ -37,45 +37,40 @@ def switchy_main(net):
 
         if gotpkt:
             log_debug("I got a packet {}".format(pkt))
-
-        if dev == "middlebox-eth0":
-            log_debug("Received from blaster")
-            '''
-            Received data packet
-            Should I drop it?
-            If not, modify headers & send to blastee
-            '''
-            drop_rate = float(0)
-            middlbox_params = open("middlebox_params.txt", 'r')
-            line = middlbox_params.read().strip().split()
-            if len(line) == 2:
-                drop_rate = float(line[1])
-            middlbox_params.close()
-            if randint(0, 100) < drop_rate * 100:  #丢弃
-                pass
-            else:  #进行发送
-                print(2)
+            if pkt[Ethernet].ethertype!=EtherType.IPv4:
+                continue
+            if dev == "middlebox-eth0":
+                log_debug("Received from blaster")
+                '''
+                Received data packet
+                Should I drop it?
+                If not, modify headers & send to blastee
+                '''
+                drop_rate = float(0)
+                middlbox_params = open("middlebox_params.txt", 'r')
+                line = middlbox_params.read().strip().split()
+                if len(line) == 2:
+                    drop_rate = float(line[1])
+                middlbox_params.close()
+                if randint(0, 100) < drop_rate * 100:  #丢弃
+                    ack_seq, = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
+                    print("drop ack {}".format(ack_seq))
+                    pass
+                else:  #进行发送
+                    pkt[Ethernet].src = port_mac[dev]
+                    pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
+                    net.send_packet("middlebox-eth1", pkt)
+            elif dev == "middlebox-eth1":
+                log_debug("Received from blastee")
+                '''
+                Received ACK
+                Modify headers & send to blaster. Not dropping ACK packets!
+                net.send_packet("middlebox-eth0", pkt)
+                '''
                 pkt[Ethernet].src = port_mac[dev]
                 pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
-                net.send_packet("middlebox-eth1", pkt)
-        elif dev == "middlebox-eth1":
-            log_debug("Received from blastee")
-            '''
-            Received ACK
-            Modify headers & send to blaster. Not dropping ACK packets!
-            net.send_packet("middlebox-eth0", pkt)
-            '''
-            print(pkt)
-            print(1)
-            pkt[Ethernet].src = port_mac[dev]
-            print(pkt[Ethernet].dst)
-            print(ip_mac[str(pkt[IPv4].dst)])
-            pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
-            print(1)
-            print(pkt)
-            net.send_packet("middlebox-eth0", pkt)
-            print(1)
-        else:
-            log_debug("Oops :))")
+                net.send_packet("middlebox-eth0", pkt)
+            else:
+                log_debug("Oops :))")
 
     net.shutdown()
