@@ -53,9 +53,8 @@ def switchy_main(net):
                     drop_rate = float(line[1])
                 middlbox_params.close()
                 if randint(0, 100) < drop_rate * 100:  #丢弃
-                    ack_seq, = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
-                    print("drop ack {}".format(ack_seq))
-                    pass
+                    seq, = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
+                    print("drop pkt {}".format(seq))
                 else:  #进行发送
                     pkt[Ethernet].src = port_mac[dev]
                     pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]

@@ -46,6 +46,7 @@ def switchy_main(net):
     send_list = set()  #waiting for ack
     pkt_fifo = list(range(1,num+1))
     pkt_send_count = [0]*(num+1)
+    re_sent = once_sent = timeout_count = 0
     while True:
         gotpkt = True
         try:
@@ -63,10 +64,17 @@ def switchy_main(net):
             if pkt[Ethernet].ethertype!=EtherType.IPv4:
                 continue
             ack_seq, = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
-            print("got ack {}".format(ack_seq))
             if ack_seq in send_list:
                 send_list.remove(ack_seq)
-            LHS += (ack_seq == LHS)
+            if ack_seq==LHS:
+                if len(send_list)!=0:
+                    LHS=sorted(list(send_list))[0]
+                elif len(pkt_fifo)!=0:
+                    LHS=pkt_fifo[0]
+                else:
+                    LHS=num+1
+            # LHS = (ack_seq == LHS)
+            print("got ack {} LHS: {} RHS: {}".format(ack_seq,LHS,RHS))
         else:
             log_debug("Didn't receive anything")
             '''
@@ -74,32 +82,43 @@ def switchy_main(net):
             '''
             if time.time() - timer >= (timeout)/1000:
                 print("timeout meet")
+                timeout_count+=1
                 pkt_fifo.extend(send_list)
                 pkt_fifo = sorted(list(set(pkt_fifo)))
                 timer = time.time()
-        if len(send_list) == 0 and len(pkt_fifo) == 0:
+        
+        print("current LHS: {} RHS: {}".format(LHS,RHS))       
+        if LHS==num+1:
             '''already done'''
-            log_info("total time is {}".format(time.time() - begin_time))
-            log_info("send packet num is {}".format(sum(pkt_send_count)))
-            re_sent = once_sent = 0
+            duration,fullpkt=time.time() - begin_time,sum(pkt_send_count)
+            log_info("total time is {:.3f}".format(duration))
+            log_info("send packet num is {}".format(fullpkt))
+            log_info("Number of coarse timeouts {}".format(timeout_count))
+            
+            print("send case {}".format(pkt_send_count[1:]))
             for item in pkt_send_count:
                 if item == 1: once_sent += 1
-                else: re_sent += item
+                else: re_sent += (item-1)
             log_info("resent num : {} only once num : {}".format(
                 re_sent, once_sent))
+            full,good=fullpkt*length,num*length
+            log_info("Throughput: {:.3f}Bps Goodput: {:.3f}Bps".format(full/duration,good/duration))
             break
-        #print("current RHS {} LHS {}".format(LHS,RHS))
+        
         if len(pkt_fifo)==0:continue
+        if pkt_fifo[0] not in send_list:
+            if RHS - LHS+1  <= sender_window: 
+                RHS=pkt_fifo[0]
+            else: 
+                print("window is full")
+                continue
+            print("send pkt: {} LHS: {} RHS: {}".format(pkt_fifo[0],LHS,RHS))
+        else:
+            print("resend pkt: "+str(pkt_fifo[0]))
         pkt = create_seq_packet(pkt_fifo[0],port_mac,length)
         send_list.add(pkt_fifo[0])
-        print("send pkt: "+str(pkt_fifo[0]))
         pkt_send_count[pkt_fifo[0]] += 1
         pkt_fifo.pop(0)
-        
         net.send_packet("blaster-eth0", pkt)
-        if RHS - LHS + 1 > sender_window: 
-            print("window is full")
-        else:
-            RHS+=1
             
     net.shutdown()
