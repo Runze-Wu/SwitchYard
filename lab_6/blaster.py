@@ -61,7 +61,6 @@ def switchy_main(net):
         except Shutdown:
             log_debug("Got shutdown signal")
             break
-
         if gotpkt:
             log_debug("I got a packet")
             if pkt[Ethernet].ethertype != EtherType.IPv4:
@@ -69,6 +68,8 @@ def switchy_main(net):
             ack_seq, = unpack('>i', pkt[RawPacketContents].to_bytes()[:4])
             if ack_seq in send_list:
                 send_list.remove(ack_seq)
+            if ack_seq in pkt_fifo:
+                pkt_fifo.remove(ack_seq)
             if ack_seq == LHS:
                 timer = time.time()  #restart the timer
                 if len(send_list) != 0:
@@ -80,16 +81,16 @@ def switchy_main(net):
             print("got ack {} LHS: {} RHS: {}".format(ack_seq, LHS, RHS))
         else:
             log_debug("Didn't receive anything")
-            '''
-            judge if time delay occur
-            '''
-            if time.time() - timer >= (timeout) / 1000:
-                print("timeout meet {} {}".format(time.time(),timer))
-                timeout_count += 1
-                pkt_fifo.extend(send_list)  #add already send but no ack pkt
-                pkt_fifo = sorted(list(set(pkt_fifo)))
-                timer = time.time()  #restart the timer
-
+            
+        if time.time() - timer >= (timeout) / 1000:
+            print("timeout meet {} {}".format(time.time(),timer))
+            timeout_count += 1
+            pkt_fifo.extend(send_list)  #add already send but no ack pkt
+            pkt_fifo = sorted(list(set(pkt_fifo)))
+            timer = time.time()  #restart the timer
+        '''
+        judge if time delay occur
+        '''
         if LHS == num + 1:
             '''already done'''
             duration, fullpkt = time.time() - begin_time, sum(pkt_send_count)

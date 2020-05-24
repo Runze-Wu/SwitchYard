@@ -53,11 +53,11 @@ def switchy_main(net):
                              dst=blaster_ip,
                              protocol=IPProtocol.UDP,
                              ttl=10)
-            udp_header = UDP(src=7777, dst=6666)
+            udp_header = UDP(src=6666, dst=7777)
             seq_num = RawPacketContents(pkt[RawPacketContents].to_bytes()[:4])
             print("ack pkt: " + str(unpack(">i", seq_num.to_bytes())[0]))
             add_payload = RawPacketContents(
-                pkt[RawPacketContents].to_bytes()[4:12])
+                pkt[RawPacketContents].to_bytes()[6:14])
             ack_packet = eth_header + ip_header + udp_header + seq_num + add_payload
             net.send_packet("blastee-eth0", ack_packet)
     net.shutdown()
