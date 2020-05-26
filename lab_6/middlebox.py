@@ -57,7 +57,7 @@ def switchy_main(net):
                     print("drop pkt {}".format(seq))
                 else:  #进行发送
                     pkt[Ethernet].src = port_mac[dev]
-                    pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
+                    pkt[Ethernet].dst = "20:00:00:00:00:01"
                     net.send_packet("middlebox-eth1", pkt)
             elif dev == "middlebox-eth1":
                 log_debug("Received from blastee")
@@ -67,7 +67,7 @@ def switchy_main(net):
                 net.send_packet("middlebox-eth0", pkt)
                 '''
                 pkt[Ethernet].src = port_mac[dev]
-                pkt[Ethernet].dst = ip_mac[str(pkt[IPv4].dst)]
+                pkt[Ethernet].dst = "10:00:00:00:00:01"
                 net.send_packet("middlebox-eth0", pkt)
             else:
                 log_debug("Oops :))")

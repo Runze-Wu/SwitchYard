@@ -40,7 +40,7 @@ def switchy_main(net):
                 continue
             if str(pkt[IPv4].dst) != "192.168.200.1":
                 log_info("the dst ipaddr isn't blastee")
-                return
+                continue
             blastee_params = open("blastee_params.txt", 'r')
             line = blastee_params.read().strip().split()
             if len(line) == 4:
