@@ -75,28 +75,33 @@ class Rule(object):
 
 
 def init_rules():
-    rules = list()
+    rules ,token_bucket= list(),list()
     firewall_rules = open('firewall_rules.txt', 'r')
     for line in firewall_rules.readlines():
         line = line.strip().split()
         (items, legal) = translate(line)
         if legal:
             rules.append(Rule(items))
+            if items['ratelimit']!=None:
+                token_bucket.append((int(items['ratelimit']),int(items['ratelimit'])))
+            else:
+                token_bucket.append(None)
     firewall_rules.close()
-    return rules
+    return rules,token_bucket
 
 def judge_rule(pkt,rules):
     for i in range(0,len(rules)):
         if rules[i]==pkt:
             return i
     return -1
-
+def token_get(pkt,rule):
+    
+    pass
 def main(net):
     # assumes that there are exactly 2 ports
     portnames = [p.name for p in net.ports()]
     portpair = dict(zip(portnames, portnames[::-1]))
-    rules = init_rules()
-    log_info(rules)
+    rules,token_bucket = init_rules()
     while True:
         pkt = None
         try:
