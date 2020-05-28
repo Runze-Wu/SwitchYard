@@ -25,7 +25,7 @@ def translate(cur_rule: list):
 
 class Rule(object):
     def __init__(self, items: dict):
-        self.items=items
+        self.items = items
         self.perimit = items['permit']
         self.type = items['type']
         self.src = items['src']
@@ -37,7 +37,7 @@ class Rule(object):
 
     def __str__(self):
         return "{}".format(self.items)
-    
+
     def __eq__(self, pkt):
         if pkt[Ethernet].ethertype != EtherType.IPv4:
             return False
@@ -50,18 +50,22 @@ class Rule(object):
                 return False
             if not self.type == 'ip':
                 src_port, dst_port = pkt[TCP].src, pkt[TCP].dst
-                if not (self.src_port == 'any' or int(self.src_port) == src_port):
+                if not (self.src_port == 'any'
+                        or int(self.src_port) == src_port):
                     return False
-                if not (self.dst_port == 'any' or int(self.dst_port) == dst_port):
+                if not (self.dst_port == 'any'
+                        or int(self.dst_port) == dst_port):
                     return False
         elif protocol == IPProtocol.UDP:
             if not (self.type == 'ip' or self.type == 'udp'):
                 return False
             if not self.type == 'ip':
                 src_port, dst_port = pkt[UDP].src, pkt[UDP].dst
-                if not (self.src_port == 'any' or int(self.src_port) == src_port):
+                if not (self.src_port == 'any'
+                        or int(self.src_port) == src_port):
                     return False
-                if not (self.dst_port == 'any' or int(self.dst_port) == dst_port):
+                if not (self.dst_port == 'any'
+                        or int(self.dst_port) == dst_port):
                     return False
         else:
             return False
@@ -75,50 +79,80 @@ class Rule(object):
 
 
 def init_rules():
-    rules ,token_bucket= list(),list()
+    rules, token_bucket = list(), list()
     firewall_rules = open('firewall_rules.txt', 'r')
     for line in firewall_rules.readlines():
         line = line.strip().split()
         (items, legal) = translate(line)
         if legal:
             rules.append(Rule(items))
-            if items['ratelimit']!=None:
-                token_bucket.append((int(items['ratelimit']),int(items['ratelimit'])))
+            if items['ratelimit'] != None:
+                token_bucket.append(
+                    [int(items['ratelimit']), 2*int(items['ratelimit'])])
             else:
                 token_bucket.append(None)
     firewall_rules.close()
-    return rules,token_bucket
+    return rules, token_bucket
 
-def judge_rule(pkt,rules):
-    for i in range(0,len(rules)):
-        if rules[i]==pkt:
+
+def judge_rule(pkt, rules):
+    for i in range(0, len(rules)):
+        if rules[i] == pkt:
             return i
     return -1
-def token_get(pkt,rule):
+
+
+def token_get(pkt, rule, token_bucket):
+    if token_bucket[rule] == None:
+        return True
+    pkt_size = len(pkt) - len(pkt.get_header(Ethernet))
+    log_info("{} pkt_size: {} rule: {}".format(pkt,pkt_size,rule+1))
+    if token_bucket[rule][1] >= pkt_size:
+        token_bucket[rule][1] = token_bucket[rule][1] - pkt_size
+        return True
+    else:
+        return False
+
+def impair_pkt(pkt):
+    pkt[IPv4].ttl=0
+    return pkt
     
-    pass
 def main(net):
     # assumes that there are exactly 2 ports
     portnames = [p.name for p in net.ports()]
     portpair = dict(zip(portnames, portnames[::-1]))
-    rules,token_bucket = init_rules()
+    rules, token_bucket = init_rules()
+    timer=time.time()
+    
     while True:
         pkt = None
         try:
-            timestamp, input_port, pkt = net.recv_packet(timeout=0.5)
+            timestamp, input_port, pkt = net.recv_packet(timeout=0.2)
         except NoPackets:
             pass
         except Shutdown:
             break
 
+            
+        if time.time()-timer>=0.5:
+            for i in range(len(token_bucket)):
+                if token_bucket[i]!=None:
+                    token_bucket[i][1]=token_bucket[i][1]+token_bucket[i][0]//2
+            timer=time.time()
+            print(token_bucket)
         if pkt is not None:
-            print(pkt)
             # This is logically where you'd include some  firewall
             # rule tests.  It currently just forwards the packet
             # out the other port, but depending on the firewall rules
             # the packet may be dropped or mutilated.
-            match=judge_rule(pkt,rules)
-            if match==-1 or rules[match].perimit:
+            match = judge_rule(pkt, rules)
+            if match == -1:
                 net.send_packet(portpair[input_port], pkt)
-
+            elif rules[match].perimit:
+                if token_bucket[match] != None:
+                    if not token_get(pkt,match,token_bucket):
+                        continue
+                elif rules[match].impair:
+                    pkt=impair_pkt(pkt)
+                net.send_packet(portpair[input_port], pkt)
     net.shutdown()
