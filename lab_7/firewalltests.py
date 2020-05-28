@@ -255,7 +255,7 @@ def firewall_tests():
     s.expect(PacketOutputEvent('eth1', pkt),
         'ARP request should be forwarded out eth1 since it does not match any rule')
     s.expect(PacketInputEvent('eth1', pkt),
-        'ARP request arrives on eth1; should be blocked since it is not explicitly allowed (rule 13).')
+        'ARP request arrives on eth1; should be permitted since it is not explicitly allowed (rule 13).')
     s.expect(PacketOutputEvent('eth0', pkt),
         'ARP request should be forwarded out eth0 since it does not match any rule')
 
@@ -270,7 +270,7 @@ def firewall_tests():
     s.expect(PacketOutputEvent('eth1', pkt),
         'IPv6 packet forwarded out eth1 since it does not match any rule.')
     s.expect(PacketInputEvent('eth1', pkt),
-        'IPv6 packet arrives on eth1; should be blocked since it is not explicitly allowed (rule 13).')
+        'IPv6 packet arrives on eth1; should be permitted since it is not explicitly allowed (rule 13).')
     s.expect(PacketOutputEvent('eth0', pkt),
         'IPv6 packet forwarded out eth0 since it does not match any rule.')
 

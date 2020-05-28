@@ -1,5 +1,6 @@
 from switchyard.lib.userlib import *
 import time
+from random import randint
 
 
 def translate(cur_rule: list):
@@ -114,7 +115,18 @@ def token_get(pkt, rule, token_bucket):
         return False
 
 def impair_pkt(pkt):
-    pkt[IPv4].ttl=0
+    if pkt[Ethernet].ethertype != EtherType.IPv4:
+            return pkt
+    joke=(randint(0, 3) if pkt[IPv4].protocol==IPProtocol.TCP else randint(0,1))
+    #joke:0 drop 1: add payload 2: change window
+    if joke==0:pass
+    elif joke==1:
+        pay_load=RawPacketContents('impaired')
+        pkt=pkt+pay_load
+    elif joke==2:
+        pkt[TCP].window=pkt[TCP].window//2
+    elif joke==3:
+        pkt[TCP].RST=1
     return pkt
     
 def main(net):
