@@ -107,7 +107,7 @@ def token_get(pkt, rule, token_bucket):
     if token_bucket[rule] == None:
         return True
     pkt_size = len(pkt) - len(pkt.get_header(Ethernet))
-    log_info("{} pkt_size: {} rule: {}".format(pkt,pkt_size,rule+1))
+    #log_info("{} pkt_size: {} rule: {}".format(pkt,pkt_size,rule+1))
     if token_bucket[rule][1] >= pkt_size:
         token_bucket[rule][1] = token_bucket[rule][1] - pkt_size
         return True
@@ -149,7 +149,7 @@ def main(net):
         if time.time()-timer>=0.5:
             for i in range(len(token_bucket)):
                 if token_bucket[i]!=None:
-                    token_bucket[i][1]=token_bucket[i][1]+token_bucket[i][0]//2
+                    token_bucket[i][1]=min(token_bucket[i][0]*2, token_bucket[i][1]+token_bucket[i][0]//2)
             timer=time.time()
             print(token_bucket)
         if pkt is not None:
@@ -163,6 +163,7 @@ def main(net):
             elif rules[match].perimit:
                 if token_bucket[match] != None:
                     if not token_get(pkt,match,token_bucket):
+                        print("drop {}".format(pkt))
                         continue
                 elif rules[match].impair:
                     pkt=impair_pkt(pkt)
