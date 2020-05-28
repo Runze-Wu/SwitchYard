@@ -32,7 +32,7 @@ permit udp src any srcport 53 dst 192.168.0.0/16 dstport any
 # rate limit http traffic to 100 kB/s (12500 bytes/sec), but
 # don't rate limit any encrypted HTTP traffic.
 # rule 7
-permit tcp src 192.168.0.0/16 srcport any dst any dstport 80 ratelimit 14
+permit tcp src 192.168.0.0/16 srcport any dst any dstport 80 ratelimit 12500
 # rule 8
 permit tcp src any srcport 80 dst 192.168.0.0/16 dstport any ratelimit 12500
 # rule 9

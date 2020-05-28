@@ -119,14 +119,17 @@ def impair_pkt(pkt):
             return pkt
     joke=(randint(0, 3) if pkt[IPv4].protocol==IPProtocol.TCP else randint(0,1))
     #joke:0 drop 1: add payload 2: change window
-    if joke==0:pass
+    pay_load=RawPacketContents('impaired')
+    pkt=pkt+pay_load
+    '''if joke==0:pass
     elif joke==1:
         pay_load=RawPacketContents('impaired')
         pkt=pkt+pay_load
     elif joke==2:
         pkt[TCP].window=pkt[TCP].window//2
     elif joke==3:
-        pkt[TCP].RST=1
+        pkt[TCP].RST=1'''
+    print('impair {}'.format(pkt))
     return pkt
     
 def main(net):
@@ -151,7 +154,7 @@ def main(net):
                 if token_bucket[i]!=None:
                     token_bucket[i][1]=min(token_bucket[i][0]*2, token_bucket[i][1]+token_bucket[i][0]//2)
             timer=time.time()
-            print(token_bucket)
+            #print(token_bucket)
         if pkt is not None:
             # This is logically where you'd include some  firewall
             # rule tests.  It currently just forwards the packet
