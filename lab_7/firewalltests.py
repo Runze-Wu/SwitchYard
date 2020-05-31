@@ -123,7 +123,7 @@ def firewall_tests():
     s.expect(PacketInputEvent('eth1',swap(pkt)), 
         'Packet arriving on eth1 should be permitted since it matches rule 4.')
     s.expect(PacketOutputEvent('eth0',swap(pkt)),
-        'Packet forwarded out eth0; permitted since it matches rule 3.')
+        'Packet forwarded out eth0; permitted since it matches rule 4.')
 
     u = UDP()
     u.src = rand16(10000)
@@ -162,13 +162,14 @@ def firewall_tests():
     s.expect(PacketOutputEvent('eth0', swap(pkt)),
         'Packet forwarded out eth0; permitted since it matches rule 10.')
 
-    # let tokens build if they initialize buckets to 0
-    #time.sleep(1)
 
-    s.expect( PacketInputTimeoutEvent(0.5),'let tokens build if they initialize buckets to 0')
-    s.expect( PacketInputTimeoutEvent(0.5),'let tokens build if they initialize buckets to 0')
-    # next few tests hit rules that have rate limits, but these should
-    # all be allowed since the payloads are small enough.
+    # next few tests hit rules that have rate limits
+    # let tokens build if they initialize buckets to 0
+    s.expect(PacketInputTimeoutEvent(1.0), "Timeout for 1s")
+    s.expect(PacketInputTimeoutEvent(1.0), "Timeout for 1s")
+    s.expect(PacketInputTimeoutEvent(1.0), "Timeout for 1s")
+    s.expect(PacketInputTimeoutEvent(1.0), "Timeout for 1s")
+
     t = TCP()
     t.src = rand16(10000)
     t.dst = 80
@@ -190,18 +191,24 @@ def firewall_tests():
     s.expect(PacketOutputEvent('eth0', swap(pkt)),
         'Packet forwarded out eth0; permitted since it matches rule 8.')
 
+
+
     ip.src = rand32()
     ip.dst = rand32()
     ip.protocol = IPProtocol.ICMP
-    pkt = mketh() + ip + ICMP()
+    icmp_pkt = ICMP()
+    icmp_pkt.icmpdata.data = int(1).to_bytes(length=75, byteorder='big')
+    pkt = mketh() + ip + icmp_pkt  # a packet containing 102 bytes (without counting the ethernet header)
     s.expect(PacketInputEvent('eth0', pkt),
-        'Packet arriving on eth0 should be permitted since it matches rule 12.')
+        'Packet arriving on eth0 should be permitted since it matches rule 13.')
     s.expect(PacketOutputEvent('eth1', pkt),
-        'Packet forwarded out eth1; permitted since it matches rule 12.')
+        'Packet forwarded out eth1; permitted since it matches rule 13.')
     s.expect(PacketInputEvent('eth1', swap(pkt)),
-        'Packet arriving on eth1 should be permitted since it matches rule 12.')
+        'Packet arriving on eth1 should be permitted since it matches rule 13.')
     s.expect(PacketOutputEvent('eth0', swap(pkt)),
-        'Packet forwarded out eth0; permitted since it matches rule 12.') 
+        'Packet forwarded out eth0; permitted since it matches rule 13.')
+    s.expect(PacketInputEvent('eth0', pkt),
+        'Packet arriving on eth0 should be blocked due to rate limit.')
 
     # second set of tests: check that packets should be blocked/denied
     # from explicit deny rules are not forwarded.
@@ -230,7 +237,7 @@ def firewall_tests():
     s.expect(PacketInputEvent('eth1', swap(pkt)),
         'Packet arriving on eth1 should be blocked since it matches rule 2.')
 
-    # third set of tests: check that other IPv4 packets are blocked (rule 13),
+    # third set of tests: check that other IPv4 packets are blocked (rule 14),
     # but that other types of packets are allowed (i.e., non-IPv4)
 
     # UDP packet with source and dest IP addrs not in 192.168.0.0/16 
@@ -244,35 +251,35 @@ def firewall_tests():
     udp.dst = rand16()
     pkt = mketh() + ip + udp + b'Hello, little UDP packet!'
     s.expect(PacketInputEvent('eth0', pkt),
-        'UDP packet arrives on eth0; should be blocked since addresses it contains aren\'t explicitly allowed (rule 13).')
+        'UDP packet arrives on eth0; should be blocked since addresses it contains aren\'t explicitly allowed (rule 14).')
     s.expect(PacketInputEvent('eth1', pkt),
-        'UDP packet arrives on eth1; should be blocked since addresses it contains aren\'t explicitly allowed (rule 13).')
+        'UDP packet arrives on eth1; should be blocked since addresses it contains aren\'t explicitly allowed (rule 14).')
 
-    # ARP should be blocked
+    # ARP should not be blocked
     pkt = create_ip_arp_request(mketh().src, rand32(), rand32())
     s.expect(PacketInputEvent('eth0', pkt),
-        'ARP request arrives on eth0; should be allowed since it does not match any rule')
+        'ARP request arrives on eth0; should be allowed')
     s.expect(PacketOutputEvent('eth1', pkt),
-        'ARP request should be forwarded out eth1 since it does not match any rule')
-    s.expect(PacketInputEvent('eth1', pkt),
-        'ARP request arrives on eth1; should be permitted since it is not explicitly allowed (rule 13).')
-    s.expect(PacketOutputEvent('eth0', pkt),
-        'ARP request should be forwarded out eth0 since it does not match any rule')
+        'ARP request should be forwarded out eth1')
+    # s.expect(PacketInputEvent('eth1', pkt),
+    #     'ARP request arrives on eth1; should be blocked since it is not explicitly allowed.')
+    # s.expect(PacketOutputEvent('eth0', pkt),
+    #     'ARP request should be forwarded out eth0 since it does not match any rule')
 
-    # IPv6 should be blocked
+    # IPv6 should be allowed
     e = mketh()
     e.ethertype = EtherType.IPv6
     ip = IPv6()
     ip.nextheader = IPProtocol.ICMPv6
     pkt = e + ip + ICMPv6()
     s.expect(PacketInputEvent('eth0', pkt),
-        'IPv6 packet arrives on eth0; should be allowed since it does not match any rule.')
+        'IPv6 packet arrives on eth0; should be allowed.')
     s.expect(PacketOutputEvent('eth1', pkt),
-        'IPv6 packet forwarded out eth1 since it does not match any rule.')
-    s.expect(PacketInputEvent('eth1', pkt),
-        'IPv6 packet arrives on eth1; should be permitted since it is not explicitly allowed (rule 13).')
-    s.expect(PacketOutputEvent('eth0', pkt),
-        'IPv6 packet forwarded out eth0 since it does not match any rule.')
+        'IPv6 packet forwarded out eth1.')
+    # s.expect(PacketInputEvent('eth1', pkt),
+    #     'IPv6 packet arrives on eth1; should be blocked since it is not explicitly allowed (rule 13).')
+    # s.expect(PacketOutputEvent('eth0', pkt),
+    #     'IPv6 packet forwarded out eth0 since it does not match any rule.')
 
     return s
 
